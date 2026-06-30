@@ -1,6 +1,13 @@
 import typer
 
+from jvl.cli.ask import ask
+from jvl.cli.default import default
+from jvl.cli.model import model
+
 app = typer.Typer(help="JVLIVS CLI")
+app.command()(ask)
+app.command()(model)
+app.command()(default)
 
 
 @app.callback()
