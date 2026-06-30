@@ -7,6 +7,7 @@ import yaml
 from rich.console import Console
 
 from jvl.core.config import load_config
+from jvl.cli.model import pick_backend_interactive
 
 console = Console()
 
@@ -24,7 +25,7 @@ def default(
 ) -> None:
     """Définit le backend LLM par défaut de façon permanente (écrit dans config.local.yaml)."""
 
-    if show or backend is None:
+    if show:
         try:
             config = load_config()
             console.print(
@@ -35,9 +36,19 @@ def default(
             raise typer.Exit(1)
         return
 
+    if backend is None:
+        try:
+            config = load_config()
+            current_default = config.default_backend
+        except Exception:
+            current_default = None
+        backend = pick_backend_interactive(current=current_default)
+        if backend is None:
+            return
+
     if backend not in ALLOWED_BACKENDS:
         console.print(
-            f"[red]❌ Backend '{backend}' inconnu. Valeurs possibles : {', '.join(sorted(ALLOWED_BACKENDS))}[/red]"
+            f"[red]Backend '{backend}' inconnu. Valeurs possibles : {', '.join(sorted(ALLOWED_BACKENDS))}[/red]"
         )
         raise typer.Exit(1)
 
@@ -56,7 +67,8 @@ def default(
         yaml.dump(local_data, f, default_flow_style=False, allow_unicode=True)
 
     console.print(
-        f"[green]✓ Backend par défaut mis à jour :[/green] "
+        f"[green]Backend par défaut mis à jour :[/green] "
         f"[dim]{old_default}[/dim] → [bold cyan]{backend}[/bold cyan]"
     )
     console.print(f"[dim]Écrit dans {LOCAL_CONFIG_PATH}[/dim]")
+

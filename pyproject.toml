@@ -18,6 +18,7 @@ dependencies = [
   "sqlalchemy>=2.0",
   "loguru>=0.7",
   "google-genai>=2.10.0",
+  "questionary>=2.1.1",
 ]
 
 [project.optional-dependencies]

@@ -1,4 +1,4 @@
-# JVLIVS 🏛️
+# JVLIVS
 
 > **Non pas un assistant IA de plus. Un Personal AI Runtime.**
 
@@ -8,7 +8,7 @@ Développé en mode _CLI-first_, JVLIVS propose une alternative locale, configur
 
 ---
 
-## 🎯 Vision Produit & Positionnement
+## Vision Produit & Positionnement
 
 Les assistants IA traditionnels (Claude Code, Cursor, Aider) sont pensés pour le grand public. Ils souffrent d'amnésie entre deux sessions, ignorent vos contextes métier et n'offrent que peu de contrôle. JVLIVS résout cela :
 
@@ -23,7 +23,7 @@ Les assistants IA traditionnels (Claude Code, Cursor, Aider) sont pensés pour l
 
 ---
 
-## 🛠️ Stack Technique
+## Stack Technique
 
 JVLIVS s'appuie sur une stack robuste, moderne et performante :
 
@@ -37,7 +37,7 @@ JVLIVS s'appuie sur une stack robuste, moderne et performante :
 
 ---
 
-## ⚙️ Installation & Lancement (v0.1)
+## Installation & Lancement (v0.1)
 
 Le projet utilise **uv** pour simplifier le développement local.
 
@@ -79,7 +79,7 @@ jvl --help
 
 ---
 
-## 👨‍💻 Auteur
+## Auteur
 
 **Ethan Benchetrit** — AI Engineer @ WeDR  
 Lyon / Paris — 2026

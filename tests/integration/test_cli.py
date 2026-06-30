@@ -65,3 +65,14 @@ def test_model_invalid_backend(tmp_path, monkeypatch):
     result = runner.invoke(app, ["model", "unknown_xyz"])
     assert result.exit_code == 1
     assert "inconnu" in result.output
+
+
+def test_model_sets_session_interactive(tmp_path, monkeypatch):
+    session_file = tmp_path / "session_notty"
+    monkeypatch.setattr("jvl.cli.model.SESSION_DIR", tmp_path)
+    with patch("jvl.cli.model._session_file_for_tty", return_value=session_file):
+        with patch("jvl.cli.model.pick_backend_interactive", return_value="openai"):
+            result = runner.invoke(app, ["model"])
+            assert result.exit_code == 0
+            assert session_file.read_text() == "openai"
+

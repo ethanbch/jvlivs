@@ -107,10 +107,10 @@ async def _stream_response(
                 )
 
     except BackendNotAvailable as e:
-        console.print(f"[red]❌ {e}[/red]")
+        console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
     except ConfigError as e:
-        console.print(f"[red]⚠️  Config invalide : {e}[/red]")
+        console.print(f"[red]Config invalide : {e}[/red]")
         raise typer.Exit(1)
     except Exception as e:
         console.print(f"[red]Erreur inattendue : {e}[/red]")
