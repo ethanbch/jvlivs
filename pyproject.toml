@@ -17,6 +17,8 @@ dependencies = [
   "python-dotenv>=1.0",
   "sqlalchemy>=2.0",
   "loguru>=0.7",
+  "google-genai>=2.10.0",
+  "questionary>=2.1.1",
 ]
 
 [project.optional-dependencies]
@@ -46,3 +48,9 @@ select = ["E", "F", "I", "N", "W"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=1.4.0",
+    "respx>=0.23.1",
+]

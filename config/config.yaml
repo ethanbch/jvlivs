@@ -1,0 +1,20 @@
+default_backend: gemini
+
+backends:
+  ollama:
+    model: phi3:3.8b
+    base_url: http://localhost:11434
+  openai:
+    model: gpt-4o
+    api_key: ${OPENAI_API_KEY}
+  anthropic:
+    model: claude-sonnet-4-5
+    api_key: ${ANTHROPIC_API_KEY}
+  azure:
+    model: gpt-4o
+    api_key: ${AZURE_OPENAI_KEY}
+    api_base: ${AZURE_OPENAI_ENDPOINT}
+    api_version: "2024-02-01"
+  gemini:
+    model: gemini-2.5-flash
+    api_key: ${GEMINI_API_KEY}
