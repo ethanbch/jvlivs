@@ -45,7 +45,7 @@ def test_default_preserves_existing_keys(tmp_path, monkeypatch):
 def test_model_sets_session(tmp_path, monkeypatch):
     session_file = tmp_path / "session_notty"
     monkeypatch.setattr("jvl.cli.model.SESSION_DIR", tmp_path)
-    with patch("jvl.cli.model._session_file_for_tty", return_value=session_file):
+    with patch("jvl.cli.model.session_file_for_tty", return_value=session_file):
         result = runner.invoke(app, ["model", "gemini"])
         assert result.exit_code == 0
         assert session_file.read_text() == "gemini"
@@ -54,7 +54,7 @@ def test_model_sets_session(tmp_path, monkeypatch):
 def test_model_reset(tmp_path, monkeypatch):
     session_file = tmp_path / "session_notty"
     session_file.write_text("gemini")
-    with patch("jvl.cli.model._session_file_for_tty", return_value=session_file):
+    with patch("jvl.cli.model.session_file_for_tty", return_value=session_file):
         result = runner.invoke(app, ["model", "--reset"])
         assert result.exit_code == 0
         assert not session_file.exists()
@@ -70,7 +70,7 @@ def test_model_invalid_backend(tmp_path, monkeypatch):
 def test_model_sets_session_interactive(tmp_path, monkeypatch):
     session_file = tmp_path / "session_notty"
     monkeypatch.setattr("jvl.cli.model.SESSION_DIR", tmp_path)
-    with patch("jvl.cli.model._session_file_for_tty", return_value=session_file):
+    with patch("jvl.cli.model.session_file_for_tty", return_value=session_file):
         with patch("jvl.cli.model.pick_backend_interactive", return_value="openai"):
             result = runner.invoke(app, ["model"])
             assert result.exit_code == 0
@@ -100,7 +100,7 @@ def test_ask_with_stdin_empty(capsys):
 
     mock_stdin = MagicMock()
     mock_stdin.isatty.return_value = False
-    mock_stdin.read.return_value = "   "
+    mock_stdin.read.side_effect = ["   ", ""]
     with (
         patch("sys.stdin", mock_stdin),
         patch("jvl.cli.ask._stream_response", new_callable=AsyncMock) as mock_stream,
@@ -118,7 +118,7 @@ def test_ask_with_stdin_completely_empty(capsys):
 
     mock_stdin = MagicMock()
     mock_stdin.isatty.return_value = False
-    mock_stdin.read.return_value = ""
+    mock_stdin.read.side_effect = ["", ""]
     with (
         patch("sys.stdin", mock_stdin),
         patch("jvl.cli.ask._stream_response", new_callable=AsyncMock) as mock_stream,
@@ -136,7 +136,7 @@ def test_ask_with_stdin_data():
 
     mock_stdin = MagicMock()
     mock_stdin.isatty.return_value = False
-    mock_stdin.read.return_value = "some file content\nline 2"
+    mock_stdin.read.side_effect = ["some file content\nline 2", ""]
     with (
         patch("sys.stdin", mock_stdin),
         patch("jvl.cli.ask._stream_response", new_callable=AsyncMock) as mock_stream,
@@ -157,7 +157,7 @@ def test_ask_with_system_and_stdin():
 
     mock_stdin = MagicMock()
     mock_stdin.isatty.return_value = False
-    mock_stdin.read.return_value = "some code"
+    mock_stdin.read.side_effect = ["some code", ""]
     with (
         patch("sys.stdin", mock_stdin),
         patch("jvl.cli.ask._stream_response", new_callable=AsyncMock) as mock_stream,
