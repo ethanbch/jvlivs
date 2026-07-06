@@ -322,12 +322,12 @@ class TestGeminiClient:
 
     @pytest.mark.asyncio
     async def test_validate_ok(self, client):
-        client.client.models.generate_content = MagicMock(return_value=MagicMock())
+        client.client.aio.models.generate_content = AsyncMock(return_value=MagicMock())
         assert await client.validate() is True
 
     @pytest.mark.asyncio
     async def test_validate_fail(self, client):
-        client.client.models.generate_content = MagicMock(
+        client.client.aio.models.generate_content = AsyncMock(
             side_effect=Exception("auth error")
         )
         assert await client.validate() is False
@@ -338,8 +338,11 @@ class TestGeminiClient:
             MagicMock(text="Bonjour"),
             MagicMock(text=" Gemini"),
         ]
-        client.client.models.generate_content_stream = MagicMock(
-            return_value=iter(chunks_mock)
+        async def mock_generator():
+            for chunk in chunks_mock:
+                yield chunk
+        client.client.aio.models.generate_content_stream = AsyncMock(
+            return_value=mock_generator()
         )
         chunks = []
         async for chunk in client.stream([{"role": "user", "content": "test"}]):
@@ -356,8 +359,11 @@ class TestGeminiClient:
         ]
         # None n'a pas d'attribut text retournant None via getattr
         chunks_mock[2].text = None
-        client.client.models.generate_content_stream = MagicMock(
-            return_value=iter(chunks_mock)
+        async def mock_generator():
+            for chunk in chunks_mock:
+                yield chunk
+        client.client.aio.models.generate_content_stream = AsyncMock(
+            return_value=mock_generator()
         )
         chunks = []
         async for chunk in client.stream([{"role": "user", "content": "test"}]):

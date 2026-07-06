@@ -15,24 +15,24 @@ class OllamaConfig(BaseModel):
 
 class OpenAIConfig(BaseModel):
     model: str
-    api_key: str
+    api_key: str | None = None
 
 
 class AnthropicConfig(BaseModel):
     model: str
-    api_key: str
+    api_key: str | None = None
 
 
 class AzureConfig(BaseModel):
     model: str
-    api_key: str
-    api_base: str
+    api_key: str | None = None
+    api_base: str | None = None
     api_version: str = "2024-02-01"
 
 
 class GeminiConfig(BaseModel):
     model: str
-    api_key: str
+    api_key: str | None = None
 
 
 class BackendsConfig(BaseModel):
@@ -67,7 +67,7 @@ def _resolve_env_vars(data: dict) -> dict:
         var_name = data[2:-1]
         value = os.getenv(var_name)
         if value is None:
-            raise ValueError(f"Variable d'environnement manquante : {var_name}")
+            return None
         return value
     return data
 

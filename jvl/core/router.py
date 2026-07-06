@@ -8,7 +8,7 @@ from jvl.backends.base import BaseClient
 from jvl.backends.gemini import GeminiClient
 from jvl.backends.ollama import OllamaClient
 from jvl.backends.openai import OpenAIClient
-from jvl.cli.model import get_session_backend  # noqa: E402
+from jvl.core.session import get_session_backend
 from jvl.core.config import Config
 from jvl.utils.errors import BackendNotAvailable, ConfigError
 
@@ -38,20 +38,24 @@ class BackendRouter:
                 return OllamaClient(cfg.ollama.base_url, cfg.ollama.model)
 
             case "openai":
-                if cfg.openai is None:
-                    raise ConfigError("Backend 'openai' non configuré dans config.yaml")
+                if cfg.openai is None or not cfg.openai.api_key:
+                    raise ConfigError(
+                        "Backend 'openai' non configuré dans config.yaml (clé API OPENAI_API_KEY manquante)"
+                    )
                 return OpenAIClient(cfg.openai.api_key, cfg.openai.model)
 
             case "anthropic":
-                if cfg.anthropic is None:
+                if cfg.anthropic is None or not cfg.anthropic.api_key:
                     raise ConfigError(
-                        "Backend 'anthropic' non configuré dans config.yaml"
+                        "Backend 'anthropic' non configuré dans config.yaml (clé API ANTHROPIC_API_KEY manquante)"
                     )
                 return AnthropicClient(cfg.anthropic.api_key, cfg.anthropic.model)
 
             case "azure":
-                if cfg.azure is None:
-                    raise ConfigError("Backend 'azure' non configuré dans config.yaml")
+                if cfg.azure is None or not cfg.azure.api_key or not cfg.azure.api_base:
+                    raise ConfigError(
+                        "Backend 'azure' non configuré dans config.yaml (clé API ou endpoint AZURE_OPENAI_KEY/ENDPOINT manquant)"
+                    )
                 return AzureOpenAIClient(
                     cfg.azure.api_key,
                     cfg.azure.api_base,
@@ -60,12 +64,19 @@ class BackendRouter:
                 )
 
             case "gemini":
-                if cfg.gemini is None:
-                    raise ConfigError("Backend 'gemini' non configuré dans config.yaml")
+                if cfg.gemini is None or not cfg.gemini.api_key:
+                    raise ConfigError(
+                        "Backend 'gemini' non configuré dans config.yaml (clé API GEMINI_API_KEY manquante)"
+                    )
                 return GeminiClient(cfg.gemini.api_key, cfg.gemini.model)
 
             case _:
                 raise ConfigError(f"Backend '{name}' inconnu ou non encore implémenté")
+
+    async def validate(self, backend: str | None = None) -> bool:
+        """Vérifie si le backend spécifié (ou actif) est joignable."""
+        client = self._get_client(backend)
+        return await client.validate()
 
     async def stream(
         self,
@@ -74,11 +85,6 @@ class BackendRouter:
         **kwargs,
     ) -> AsyncIterator[str]:
         client = self._get_client(backend)
-        available = await client.validate()
-        if not available:
-            raise BackendNotAvailable(
-                f"Backend '{backend or self._active_backend}' non joignable."
-            )
         async for chunk in client.stream(messages, **kwargs):
             yield chunk
         self._last_usage = client.last_usage

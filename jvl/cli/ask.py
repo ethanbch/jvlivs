@@ -90,7 +90,7 @@ async def _stream_response(
         with console.status(
             f"[dim]Connexion à {backend or config.default_backend}...[/dim]"
         ):
-            available = await router._get_client(backend).validate()
+            available = await router.validate(backend)
             if not available:
                 raise BackendNotAvailable(
                     f"Backend '{backend or config.default_backend}' non joignable."

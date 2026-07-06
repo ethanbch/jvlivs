@@ -73,6 +73,48 @@ def pick_backend_interactive(current: str | None = None) -> str | None:
     ).ask()
 
 
+async def pick_backend_interactive_async(current: str | None = None) -> str | None:
+    try:
+        config = load_config()
+    except Exception as e:
+        console.print(f"[red]Erreur de config: {e}[/red]")
+        return None
+
+    if current is None:
+        current = get_session_backend() or config.default_backend
+
+    choices = []
+    for name in ["ollama", "openai", "anthropic", "azure", "gemini"]:
+        backend_cfg = getattr(config.backends, name)
+        if backend_cfg is None:
+            continue
+        model_name = getattr(backend_cfg, "model", "—")
+        label = f"{name:<12} {model_name}"
+        if name == current:
+            label += "  [actif]"
+        choices.append(questionary.Choice(title=label, value=name))
+
+    if not choices:
+        console.print("[red]Aucun backend configuré dans votre config.yaml[/red]")
+        return None
+
+    default_choice = None
+    for choice in choices:
+        if choice.value == current:
+            default_choice = choice
+            break
+    if not default_choice:
+        default_choice = choices[0]
+
+    return await questionary.select(
+        "Choisir un backend",
+        choices=choices,
+        default=default_choice,
+        style=_style,
+        use_shortcuts=False,
+    ).ask_async()
+
+
 def model(
     backend: str | None = typer.Argument(
         None,

@@ -180,6 +180,7 @@ async def test_stream_response_debug_prints_stdin(capsys):
 
     mock_config = MagicMock()
     mock_router = MagicMock()
+    mock_router.validate = AsyncMock(return_value=True)
     mock_client = AsyncMock()
     mock_client.validate.return_value = True
     mock_router._get_client.return_value = mock_client
