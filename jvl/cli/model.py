@@ -9,6 +9,7 @@ import questionary
 from questionary import Style
 
 from jvl.core.config import load_config
+from jvl.core.session import get_session_backend, session_file_for_tty
 from jvl.utils.errors import ConfigError
 
 console = Console()
@@ -16,27 +17,6 @@ console = Console()
 ALLOWED_BACKENDS = {"ollama", "openai", "anthropic", "azure", "gemini"}
 SESSION_DIR = Path.home() / ".jvl"
 SESSION_FILE = SESSION_DIR / "session"
-
-
-def _get_tty_id() -> str:
-    """Retourne un identifiant unique pour le TTY courant."""
-    try:
-        return str(os.ttyname(0))
-    except Exception:
-        return "notty"
-
-
-def _session_file_for_tty() -> Path:
-    tty_id = _get_tty_id().replace("/", "_")
-    return SESSION_DIR / f"session_{tty_id}"
-
-
-def get_session_backend() -> str | None:
-    """Lit le backend de session pour le TTY courant. None si absent."""
-    session_file = _session_file_for_tty()
-    if session_file.exists():
-        return session_file.read_text().strip() or None
-    return None
 
 
 _style = Style([
@@ -108,7 +88,7 @@ def model(
     """Définit le backend LLM pour la session courante (reset à la fermeture du terminal)."""
 
     if reset:
-        session_file = _session_file_for_tty()
+        session_file = session_file_for_tty()
         if session_file.exists():
             session_file.unlink()
             console.print(
@@ -147,7 +127,7 @@ def model(
         raise typer.Exit(1)
 
     SESSION_DIR.mkdir(parents=True, exist_ok=True)
-    session_file = _session_file_for_tty()
+    session_file = session_file_for_tty()
     session_file.write_text(backend)
 
     console.print(

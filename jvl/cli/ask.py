@@ -42,15 +42,34 @@ def ask(
     if system:
         messages.append({"role": "system", "content": system})
 
+    stdin_content = ""
     if not sys.stdin.isatty():
-        stdin_content = sys.stdin.read().strip()
-        if stdin_content:
-            messages.append({"role": "user", "content": f"{stdin_content}\n\n{prompt}"})
+        stdin_content = sys.stdin.read().rstrip("\n")
+        if not stdin_content.strip():
+            console.print(
+                "[red]Attention : l'entrée standard (stdin) est vide (le fichier est peut-être vide ou inexistant).[/red]"
+            )
+
+    if stdin_content.strip():
+        composite_prompt = f"""{prompt}
+
+Contexte fourni via stdin :
+{stdin_content}
+"""
+        messages.append({"role": "user", "content": composite_prompt})
     else:
         messages.append({"role": "user", "content": prompt})
 
     asyncio.run(
-        _stream_response(messages, backend, temperature, max_tokens, no_markdown, debug)
+        _stream_response(
+            messages,
+            backend,
+            temperature,
+            max_tokens,
+            no_markdown,
+            debug,
+            stdin_content=stdin_content if stdin_content.strip() else None,
+        )
     )
 
 
@@ -61,6 +80,7 @@ async def _stream_response(
     max_tokens: int | None,
     no_markdown: bool,
     debug: bool,
+    stdin_content: str | None = None,
 ) -> None:
     try:
         config = load_config()
@@ -105,6 +125,9 @@ async def _stream_response(
                 console.print(
                     f"[dim]tokens   :[/dim] [cyan]{usage.get('prompt_tokens', '?')} in / {usage.get('completion_tokens', '?')} out[/cyan]"
                 )
+            if stdin_content:
+                console.print("[dim]stdin    :[/dim]")
+                console.print(stdin_content, highlight=False, markup=False)
 
     except BackendNotAvailable as e:
         console.print(f"[red]{e}[/red]")

@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import yaml
@@ -45,7 +45,7 @@ def test_default_preserves_existing_keys(tmp_path, monkeypatch):
 def test_model_sets_session(tmp_path, monkeypatch):
     session_file = tmp_path / "session_notty"
     monkeypatch.setattr("jvl.cli.model.SESSION_DIR", tmp_path)
-    with patch("jvl.cli.model._session_file_for_tty", return_value=session_file):
+    with patch("jvl.cli.model.session_file_for_tty", return_value=session_file):
         result = runner.invoke(app, ["model", "gemini"])
         assert result.exit_code == 0
         assert session_file.read_text() == "gemini"
@@ -54,7 +54,7 @@ def test_model_sets_session(tmp_path, monkeypatch):
 def test_model_reset(tmp_path, monkeypatch):
     session_file = tmp_path / "session_notty"
     session_file.write_text("gemini")
-    with patch("jvl.cli.model._session_file_for_tty", return_value=session_file):
+    with patch("jvl.cli.model.session_file_for_tty", return_value=session_file):
         result = runner.invoke(app, ["model", "--reset"])
         assert result.exit_code == 0
         assert not session_file.exists()
@@ -70,9 +70,143 @@ def test_model_invalid_backend(tmp_path, monkeypatch):
 def test_model_sets_session_interactive(tmp_path, monkeypatch):
     session_file = tmp_path / "session_notty"
     monkeypatch.setattr("jvl.cli.model.SESSION_DIR", tmp_path)
-    with patch("jvl.cli.model._session_file_for_tty", return_value=session_file):
+    with patch("jvl.cli.model.session_file_for_tty", return_value=session_file):
         with patch("jvl.cli.model.pick_backend_interactive", return_value="openai"):
             result = runner.invoke(app, ["model"])
             assert result.exit_code == 0
             assert session_file.read_text() == "openai"
 
+
+# ── jvl ask ───────────────────────────────────────────────────
+
+
+def test_ask_no_stdin():
+    from jvl.cli.ask import ask
+
+    mock_stdin = MagicMock()
+    mock_stdin.isatty.return_value = True
+    with (
+        patch("sys.stdin", mock_stdin),
+        patch("jvl.cli.ask._stream_response", new_callable=AsyncMock) as mock_stream,
+    ):
+        ask(prompt="my prompt", system=None)
+        mock_stream.assert_called_once()
+        messages = mock_stream.call_args[0][0]
+        assert messages == [{"role": "user", "content": "my prompt"}]
+
+
+def test_ask_with_stdin_empty(capsys):
+    from jvl.cli.ask import ask
+
+    mock_stdin = MagicMock()
+    mock_stdin.isatty.return_value = False
+    mock_stdin.read.side_effect = ["   ", ""]
+    with (
+        patch("sys.stdin", mock_stdin),
+        patch("jvl.cli.ask._stream_response", new_callable=AsyncMock) as mock_stream,
+    ):
+        ask(prompt="my prompt", system=None)
+        mock_stream.assert_called_once()
+        messages = mock_stream.call_args[0][0]
+        assert messages == [{"role": "user", "content": "my prompt"}]
+        captured = capsys.readouterr()
+        assert "Attention : l'entrée standard (stdin) est vide" in captured.out
+
+
+def test_ask_with_stdin_completely_empty(capsys):
+    from jvl.cli.ask import ask
+
+    mock_stdin = MagicMock()
+    mock_stdin.isatty.return_value = False
+    mock_stdin.read.side_effect = ["", ""]
+    with (
+        patch("sys.stdin", mock_stdin),
+        patch("jvl.cli.ask._stream_response", new_callable=AsyncMock) as mock_stream,
+    ):
+        ask(prompt="my prompt", system=None)
+        mock_stream.assert_called_once()
+        messages = mock_stream.call_args[0][0]
+        assert messages == [{"role": "user", "content": "my prompt"}]
+        captured = capsys.readouterr()
+        assert "Attention : l'entrée standard (stdin) est vide" in captured.out
+
+
+def test_ask_with_stdin_data():
+    from jvl.cli.ask import ask
+
+    mock_stdin = MagicMock()
+    mock_stdin.isatty.return_value = False
+    mock_stdin.read.side_effect = ["some file content\nline 2", ""]
+    with (
+        patch("sys.stdin", mock_stdin),
+        patch("jvl.cli.ask._stream_response", new_callable=AsyncMock) as mock_stream,
+    ):
+        ask(prompt="my prompt", system=None)
+        mock_stream.assert_called_once()
+        messages = mock_stream.call_args[0][0]
+        assert messages == [
+            {
+                "role": "user",
+                "content": "my prompt\n\nContexte fourni via stdin :\nsome file content\nline 2\n",
+            }
+        ]
+
+
+def test_ask_with_system_and_stdin():
+    from jvl.cli.ask import ask
+
+    mock_stdin = MagicMock()
+    mock_stdin.isatty.return_value = False
+    mock_stdin.read.side_effect = ["some code", ""]
+    with (
+        patch("sys.stdin", mock_stdin),
+        patch("jvl.cli.ask._stream_response", new_callable=AsyncMock) as mock_stream,
+    ):
+        ask(prompt="my prompt", system="sys prompt")
+        mock_stream.assert_called_once()
+        messages = mock_stream.call_args[0][0]
+        assert messages == [
+            {"role": "system", "content": "sys prompt"},
+            {
+                "role": "user",
+                "content": "my prompt\n\nContexte fourni via stdin :\nsome code\n",
+            },
+        ]
+
+
+@pytest.mark.asyncio
+async def test_stream_response_debug_prints_stdin(capsys):
+    from jvl.cli.ask import _stream_response
+
+    mock_config = MagicMock()
+    mock_router = MagicMock()
+    mock_client = AsyncMock()
+    mock_client.validate.return_value = True
+    mock_router._get_client.return_value = mock_client
+
+    async def mock_stream(*args, **kwargs):
+        yield "chunk 1"
+        yield "chunk 2"
+
+    mock_router.stream = mock_stream
+    mock_router.active_backend = "openai"
+    mock_router.last_usage = {"prompt_tokens": 10, "completion_tokens": 20}
+
+    with (
+        patch("jvl.cli.ask.load_config", return_value=mock_config),
+        patch("jvl.cli.ask.BackendRouter", return_value=mock_router),
+    ):
+
+        await _stream_response(
+            messages=[{"role": "user", "content": "hello"}],
+            backend="openai",
+            temperature=0.7,
+            max_tokens=100,
+            no_markdown=True,
+            debug=True,
+            stdin_content="my debugged stdin content",
+        )
+
+    captured = capsys.readouterr()
+    assert "stdin" in captured.out
+    assert "my debugged stdin content" in captured.out
