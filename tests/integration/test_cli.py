@@ -95,7 +95,7 @@ def test_ask_no_stdin():
         assert messages == [{"role": "user", "content": "my prompt"}]
 
 
-def test_ask_with_stdin_empty():
+def test_ask_with_stdin_empty(capsys):
     from jvl.cli.ask import ask
 
     mock_stdin = MagicMock()
@@ -109,9 +109,11 @@ def test_ask_with_stdin_empty():
         mock_stream.assert_called_once()
         messages = mock_stream.call_args[0][0]
         assert messages == [{"role": "user", "content": "my prompt"}]
+        captured = capsys.readouterr()
+        assert "Attention : l'entrée standard (stdin) est vide" in captured.out
 
 
-def test_ask_with_stdin_completely_empty():
+def test_ask_with_stdin_completely_empty(capsys):
     from jvl.cli.ask import ask
 
     mock_stdin = MagicMock()
@@ -125,6 +127,8 @@ def test_ask_with_stdin_completely_empty():
         mock_stream.assert_called_once()
         messages = mock_stream.call_args[0][0]
         assert messages == [{"role": "user", "content": "my prompt"}]
+        captured = capsys.readouterr()
+        assert "Attention : l'entrée standard (stdin) est vide" in captured.out
 
 
 def test_ask_with_stdin_data():

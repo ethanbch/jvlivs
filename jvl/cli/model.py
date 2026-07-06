@@ -20,10 +20,12 @@ SESSION_FILE = SESSION_DIR / "session"
 
 def _get_tty_id() -> str:
     """Retourne un identifiant unique pour le TTY courant."""
-    try:
-        return str(os.ttyname(0))
-    except Exception:
-        return "notty"
+    for fd in (0, 1, 2):
+        try:
+            return str(os.ttyname(fd))
+        except Exception:
+            continue
+    return "notty"
 
 
 def _session_file_for_tty() -> Path:

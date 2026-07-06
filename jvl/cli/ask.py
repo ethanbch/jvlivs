@@ -45,6 +45,10 @@ def ask(
     stdin_content = ""
     if not sys.stdin.isatty():
         stdin_content = sys.stdin.read().rstrip("\n")
+        if not stdin_content.strip():
+            console.print(
+                "[red]Attention : l'entrée standard (stdin) est vide (le fichier est peut-être vide ou inexistant).[/red]"
+            )
 
     if stdin_content.strip():
         composite_prompt = f"""{prompt}

@@ -7,10 +7,12 @@ SESSION_DIR = Path.home() / ".jvl"
 
 
 def _get_tty_id() -> str:
-    try:
-        return str(os.ttyname(0))
-    except Exception:
-        return "notty"
+    for fd in (0, 1, 2):
+        try:
+            return str(os.ttyname(fd))
+        except Exception:
+            continue
+    return "notty"
 
 
 def session_file_for_tty() -> Path:
