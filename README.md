@@ -77,7 +77,86 @@ source .venv/bin/activate
 jvl --help
 ```
 
+
 ---
+
+## Configuration & Commandes CLI
+
+JVLIVS utilise un système de configuration à deux niveaux :
+1. **Repository Config** : Le fichier `config/config.yaml` sert de base et de configuration par défaut pour le développement.
+2. **User Config** : Persistée localement dans `~/.jvl/config.yaml`, elle permet à chaque utilisateur de configurer ses propres clés API, endpoints personnalisés et modèles préférés.
+
+### Le groupe de commandes `jvl config`
+
+Gérez votre configuration utilisateur directement en ligne de commande :
+
+#### 🔄 Migration initiale
+```bash
+jvl config migrate
+```
+Copie automatiquement la configuration du repo de développement dans votre configuration utilisateur `~/.jvl/config.yaml` pour démarrer instantanément.
+
+#### 🔌 Gestion des Providers (`provider`)
+Configurez n'importe quel provider natif (`ollama`, `openai`, `anthropic`, `azure`, `gemini`) :
+```bash
+# Ajouter ou modifier un provider
+jvl config provider add ollama --base-url http://localhost:11434 --default-model "llama3.2:3b"
+jvl config provider add openai --default-model "gpt-4o"
+
+# Lister les providers configurés et voir le statut
+jvl config provider list
+
+# Supprimer un provider
+jvl config provider remove anthropic
+```
+
+#### 🤖 Gestion des Modèles (`model`)
+```bash
+# Définir le modèle par défaut d'un provider
+jvl config model set openai gpt-4o-mini
+
+# Définir de façon permanente le provider et le modèle actif par défaut
+jvl config model use openai gpt-4o
+
+# Afficher le provider et modèle actif résolu
+jvl config model show
+```
+
+#### 🔑 Gestion des Clés API (`key`)
+```bash
+# Définir une clé API en clair
+jvl config key set openai sk-proj-...
+
+# Lier une clé API à une variable d'environnement (recommandé)
+jvl config key set openai --env OPENAI_API_KEY
+
+# Lister les clés configurées (masquées)
+jvl config key show
+
+# Supprimer la clé d'un provider
+jvl config key remove openai
+```
+
+---
+
+## Utilisation & Changement dynamique de Modèle
+
+### Flags CLI
+Vous pouvez écraser temporairement le modèle ou le backend actif lors d'une commande grâce aux options `--backend` (`-b`) et `--model` (`-m`) :
+```bash
+jvl ask -b openai -m gpt-4o "Explique-moi la relativité en 3 phrases."
+jvl chat -b anthropic -m claude-sonnet-4-5
+```
+
+### Picker interactif
+Si vous lancez la commande `jvl model` sans argument, ou si vous utilisez la commande `/model` dans le REPL de chat sans paramètre, JVLIVS lance un picker interactif en deux étapes :
+1. **Choix du provider** parmi ceux disponibles.
+2. **Choix du modèle** :
+   - Pour **Ollama**, JVLIVS interroge l'API locale pour lister les modèles réellement installés sur votre machine.
+   - Pour les **providers Cloud**, JVLIVS propose une liste des modèles de référence ainsi qu'une option de saisie libre.
+
+---
+
 
 ## Auteur
 

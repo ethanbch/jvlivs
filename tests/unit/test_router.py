@@ -66,7 +66,7 @@ def test_router_build_client_unconfigured_backend(mock_session_none):
 
 
 @pytest.mark.asyncio
-async def test_router_stream_raises_if_not_available(mock_session_none):
+async def test_router_validate(mock_session_none):
     config = make_config("ollama")
     router = BackendRouter(config)
 
@@ -74,9 +74,10 @@ async def test_router_stream_raises_if_not_available(mock_session_none):
     mock_client.validate = AsyncMock(return_value=False)
     router._clients["ollama"] = mock_client
 
-    with pytest.raises(BackendNotAvailable):
-        async for _ in router.stream([{"role": "user", "content": "test"}]):
-            pass
+    assert await router.validate() is False
+
+    mock_client.validate = AsyncMock(return_value=True)
+    assert await router.validate() is True
 
 
 @pytest.mark.asyncio

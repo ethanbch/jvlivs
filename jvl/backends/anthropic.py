@@ -41,8 +41,22 @@ class AnthropicClient(BaseClient):
             stream=True,
         )
 
+        input_tokens = 0
+        output_tokens = 0
         async for event in response:
-            if event.type == "content_block_delta" and hasattr(event.delta, "text"):
+            if event.type == "message_start" and hasattr(event, "message") and hasattr(event.message, "usage"):
+                input_tokens = getattr(event.message.usage, "input_tokens", 0)
+                self._last_usage = {
+                    "prompt_tokens": input_tokens,
+                    "completion_tokens": output_tokens,
+                }
+            elif event.type == "message_delta" and hasattr(event, "usage"):
+                output_tokens = getattr(event.usage, "output_tokens", 0)
+                self._last_usage = {
+                    "prompt_tokens": input_tokens,
+                    "completion_tokens": output_tokens,
+                }
+            elif event.type == "content_block_delta" and hasattr(event.delta, "text"):
                 yield event.delta.text
 
     async def complete(

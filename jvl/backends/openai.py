@@ -26,15 +26,22 @@ class OpenAIClient(BaseClient):
             "messages": messages,
             "temperature": temperature,
             "stream": True,
+            "stream_options": {"include_usage": True},
         }
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
 
         stream = await self.client.chat.completions.create(**kwargs)
         async for chunk in stream:
-            delta = chunk.choices[0].delta.content
-            if delta:
-                yield delta
+            if hasattr(chunk, "usage") and chunk.usage is not None:
+                self._last_usage = {
+                    "prompt_tokens": chunk.usage.prompt_tokens,
+                    "completion_tokens": chunk.usage.completion_tokens,
+                }
+            if chunk.choices:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    yield delta
 
     async def complete(
         self,

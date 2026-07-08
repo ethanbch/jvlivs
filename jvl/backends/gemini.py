@@ -39,13 +39,19 @@ class GeminiClient(BaseClient):
         if max_tokens is not None:
             config["max_output_tokens"] = max_tokens
 
-        response = self.client.models.generate_content_stream(
+        response = await self.client.aio.models.generate_content_stream(
             model=self.model,
             contents=prompt,
             config=config,
         )
 
-        for chunk in response:
+        async for chunk in response:
+            usage = getattr(chunk, "usage_metadata", None)
+            if usage:
+                self._last_usage = {
+                    "prompt_tokens": getattr(usage, "prompt_token_count", 0),
+                    "completion_tokens": getattr(usage, "candidates_token_count", 0),
+                }
             text = getattr(chunk, "text", None)
             if text:
                 yield text
@@ -62,7 +68,7 @@ class GeminiClient(BaseClient):
 
     async def validate(self) -> bool:
         try:
-            self.client.models.generate_content(
+            await self.client.aio.models.generate_content(
                 model=self.model,
                 contents="ping",
             )

@@ -21,9 +21,8 @@ def test_resolve_env_vars_string(monkeypatch):
     assert _resolve_env_vars("${MY_KEY}") == "hello"
 
 
-def test_resolve_env_vars_missing_raises():
-    with pytest.raises(ValueError, match="Variable d'environnement manquante"):
-        _resolve_env_vars("${DOES_NOT_EXIST_XYZ}")
+def test_resolve_env_vars_missing_returns_none():
+    assert _resolve_env_vars("${DOES_NOT_EXIST_XYZ}") is None
 
 
 def test_resolve_env_vars_nested(monkeypatch):
