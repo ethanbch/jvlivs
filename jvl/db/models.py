@@ -20,17 +20,20 @@ class ChatSession(Base):
     backend: Mapped[str] = mapped_column(String, nullable=False)
     model: Mapped[str] = mapped_column(String, nullable=False)
     system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    started_at: Mapped[datetime] = mapped_column(
+        "created_at",
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
     )
-    updated_at: Mapped[datetime] = mapped_column(
+    ended_at: Mapped[datetime] = mapped_column(
+        "updated_at",
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
     messages: Mapped[list[ChatMessage]] = relationship(
-        back_populates="session", order_by="ChatMessage.created_at"
+        back_populates="session", order_by="ChatMessage.timestamp"
     )
 
 
@@ -45,8 +48,10 @@ class ChatMessage(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    timestamp: Mapped[datetime] = mapped_column(
+        "created_at",
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
     )
 
     session: Mapped[ChatSession] = relationship(back_populates="messages")

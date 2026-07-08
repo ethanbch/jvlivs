@@ -64,7 +64,7 @@ def add_message(
         select(ChatSession).filter_by(id=session_id)
     ).scalar_one_or_none()
     if session:
-        session.updated_at = datetime.now(timezone.utc)
+        session.ended_at = datetime.now(timezone.utc)
 
     db.commit()
     return msg
@@ -76,7 +76,7 @@ def get_session_messages(db: Session, session_id: str) -> list[dict]:
         db.execute(
             select(ChatMessage)
             .filter_by(session_id=session_id)
-            .order_by(ChatMessage.created_at)
+            .order_by(ChatMessage.timestamp)
         )
         .scalars()
         .all()
