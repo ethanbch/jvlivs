@@ -6,6 +6,7 @@ from jvl.cli.config import config_app
 from jvl.cli.default import default
 from jvl.cli.history import history
 from jvl.cli.model import model
+from jvl.cli.review import review
 
 app = typer.Typer(help="JVLIVS CLI")
 app.command()(ask)
@@ -13,6 +14,7 @@ app.command()(chat)
 app.command()(model)
 app.command()(default)
 app.command()(history)
+app.command()(review)
 app.add_typer(config_app, name="config")
 
 
