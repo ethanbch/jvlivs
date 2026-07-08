@@ -94,7 +94,7 @@ def test_review_custom_prompt_file(mock_get_db, mock_router_cls, db, tmp_path, m
     # Path patch prompts/review.md
     custom_prompt_file = tmp_path / "custom_review.md"
     custom_prompt_file.write_text("CUSTOM REVIEW SYSTEM INSTRUCTION")
-    monkeypatch.setattr("jvl.cli.review.SYSTEM_REVIEW_PROMPT_PATH", custom_prompt_file)
+    monkeypatch.setattr("jvl.cli.review.DEFAULT_REVIEW_PROMPT_PATH", custom_prompt_file)
     
     mock_router = mock_router_cls.return_value
     mock_router.active_backend = "openai"
@@ -117,7 +117,7 @@ def test_review_custom_prompt_file(mock_get_db, mock_router_cls, db, tmp_path, m
 
 def test_review_missing_prompt_file(tmp_path, monkeypatch):
     missing_file = tmp_path / "nonexistent_review.md"
-    monkeypatch.setattr("jvl.cli.review.SYSTEM_REVIEW_PROMPT_PATH", missing_file)
+    monkeypatch.setattr("jvl.cli.review.DEFAULT_REVIEW_PROMPT_PATH", missing_file)
     
     result = runner.invoke(app, ["review"], input="x = 1\n", env={"COLUMNS": "120"})
     assert result.exit_code == 1
@@ -127,7 +127,7 @@ def test_review_missing_prompt_file(tmp_path, monkeypatch):
 def test_review_empty_prompt_file(tmp_path, monkeypatch):
     empty_file = tmp_path / "empty_review.md"
     empty_file.write_text("")
-    monkeypatch.setattr("jvl.cli.review.SYSTEM_REVIEW_PROMPT_PATH", empty_file)
+    monkeypatch.setattr("jvl.cli.review.DEFAULT_REVIEW_PROMPT_PATH", empty_file)
     
     result = runner.invoke(app, ["review"], input="x = 1\n", env={"COLUMNS": "120"})
     assert result.exit_code == 1

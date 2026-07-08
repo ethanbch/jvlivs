@@ -17,23 +17,32 @@ from jvl.db.session import add_message, create_chat_session
 from jvl.utils.errors import BackendNotAvailable, ConfigError
 
 console = Console()
-SYSTEM_REVIEW_PROMPT_PATH = Path("prompts/review.md")
+DEFAULT_REVIEW_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "review.md"
+USER_REVIEW_PROMPT_PATH = Path.home() / ".jvl" / "prompts" / "review.md"
 
 
 def _load_review_prompt() -> str:
-    """Charge le system prompt de revue depuis prompts/review.md."""
-    if not SYSTEM_REVIEW_PROMPT_PATH.exists():
-        console.print("[red]Erreur : Le fichier de prompt 'prompts/review.md' est introuvable.[/red]")
+    """Charge le system prompt de revue depuis la configuration utilisateur ou le package."""
+    if USER_REVIEW_PROMPT_PATH.exists():
+        try:
+            content = USER_REVIEW_PROMPT_PATH.read_text(encoding="utf-8").strip()
+            if content:
+                return content
+        except Exception as e:
+            console.print(f"[yellow]Avertissement : Erreur de lecture de '{USER_REVIEW_PROMPT_PATH}' : {e}[/yellow]")
+
+    if not DEFAULT_REVIEW_PROMPT_PATH.exists():
+        console.print("[red]Erreur : Le fichier de prompt de revue par défaut est introuvable dans le package.[/red]")
         raise typer.Exit(1)
     
     try:
-        content = SYSTEM_REVIEW_PROMPT_PATH.read_text(encoding="utf-8").strip()
+        content = DEFAULT_REVIEW_PROMPT_PATH.read_text(encoding="utf-8").strip()
         if not content:
-            console.print("[red]Erreur : Le fichier de prompt 'prompts/review.md' est vide.[/red]")
+            console.print("[red]Erreur : Le fichier de prompt de revue par défaut est vide.[/red]")
             raise typer.Exit(1)
         return content
     except Exception as e:
-        console.print(f"[red]Erreur de lecture de 'prompts/review.md' : {e}[/red]")
+        console.print(f"[red]Erreur de lecture du prompt par défaut : {e}[/red]")
         raise typer.Exit(1)
 
 

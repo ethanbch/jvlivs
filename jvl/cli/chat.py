@@ -26,7 +26,8 @@ from jvl.utils.errors import BackendNotAvailable, ConfigError
 
 console = Console()
 
-SYSTEM_PROMPT_PATH = Path("prompts/system.md")
+DEFAULT_SYSTEM_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "system.md"
+USER_SYSTEM_PROMPT_PATH = Path.home() / ".jvl" / "prompts" / "system.md"
 HISTORY_PATH = Path.home() / ".jvl" / "chat_history"
 
 HELP_TEXT = """[bold]Commandes disponibles :[/bold]
@@ -41,10 +42,22 @@ HELP_TEXT = """[bold]Commandes disponibles :[/bold]
 
 
 def _load_system_prompt() -> str | None:
-    """Charge le system prompt depuis prompts/system.md."""
-    if SYSTEM_PROMPT_PATH.exists():
-        content = SYSTEM_PROMPT_PATH.read_text().strip()
-        return content or None
+    """Charge le system prompt depuis la configuration utilisateur ou le package."""
+    if USER_SYSTEM_PROMPT_PATH.exists():
+        try:
+            content = USER_SYSTEM_PROMPT_PATH.read_text(encoding="utf-8").strip()
+            if content:
+                return content
+        except Exception:
+            pass
+
+    if DEFAULT_SYSTEM_PROMPT_PATH.exists():
+        try:
+            content = DEFAULT_SYSTEM_PROMPT_PATH.read_text(encoding="utf-8").strip()
+            return content or None
+        except Exception:
+            pass
+
     return None
 
 
