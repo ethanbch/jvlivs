@@ -43,21 +43,25 @@ def test_default_preserves_existing_keys(tmp_path, monkeypatch):
 
 
 def test_model_sets_session(tmp_path, monkeypatch):
+    import json
     session_file = tmp_path / "session_notty"
     monkeypatch.setattr("jvl.cli.model.SESSION_DIR", tmp_path)
-    with patch("jvl.cli.model.session_file_for_tty", return_value=session_file):
-        result = runner.invoke(app, ["model", "gemini"])
-        assert result.exit_code == 0
-        assert session_file.read_text() == "gemini"
+    with patch("jvl.core.session.session_file_for_tty", return_value=session_file):
+        with patch("jvl.cli.model.session_file_for_tty", return_value=session_file):
+            result = runner.invoke(app, ["model", "gemini"])
+            assert result.exit_code == 0
+            data = json.loads(session_file.read_text())
+            assert data["provider"] == "gemini"
 
 
 def test_model_reset(tmp_path, monkeypatch):
     session_file = tmp_path / "session_notty"
     session_file.write_text("gemini")
-    with patch("jvl.cli.model.session_file_for_tty", return_value=session_file):
-        result = runner.invoke(app, ["model", "--reset"])
-        assert result.exit_code == 0
-        assert not session_file.exists()
+    with patch("jvl.core.session.session_file_for_tty", return_value=session_file):
+        with patch("jvl.cli.model.session_file_for_tty", return_value=session_file):
+            result = runner.invoke(app, ["model", "--reset"])
+            assert result.exit_code == 0
+            assert not session_file.exists()
 
 
 def test_model_invalid_backend(tmp_path, monkeypatch):
@@ -68,13 +72,16 @@ def test_model_invalid_backend(tmp_path, monkeypatch):
 
 
 def test_model_sets_session_interactive(tmp_path, monkeypatch):
+    import json
     session_file = tmp_path / "session_notty"
     monkeypatch.setattr("jvl.cli.model.SESSION_DIR", tmp_path)
-    with patch("jvl.cli.model.session_file_for_tty", return_value=session_file):
-        with patch("jvl.cli.model.pick_backend_interactive", return_value="openai"):
-            result = runner.invoke(app, ["model"])
-            assert result.exit_code == 0
-            assert session_file.read_text() == "openai"
+    with patch("jvl.core.session.session_file_for_tty", return_value=session_file):
+        with patch("jvl.cli.model.session_file_for_tty", return_value=session_file):
+            with patch("jvl.cli.model.pick_provider_and_model", return_value=("openai", None)):
+                result = runner.invoke(app, ["model"])
+                assert result.exit_code == 0
+                data = json.loads(session_file.read_text())
+                assert data["provider"] == "openai"
 
 
 # ── jvl ask ───────────────────────────────────────────────────

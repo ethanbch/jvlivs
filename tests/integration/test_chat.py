@@ -138,11 +138,11 @@ def test_chat_resume_session(mock_router_cls, mock_get_db, mock_uuid, mock_route
 
 @patch("jvl.cli.chat.get_db")
 @patch("jvl.cli.chat.BackendRouter")
-@patch("jvl.cli.chat.pick_backend_interactive_async", new_callable=AsyncMock)
+@patch("jvl.cli.chat.pick_provider_and_model_async", new_callable=AsyncMock)
 def test_chat_slash_model(mock_pick, mock_router_cls, mock_get_db, mock_router, mock_db):
     mock_router_cls.return_value = mock_router
     mock_get_db.return_value = mock_db
-    mock_pick.return_value = "ollama"
+    mock_pick.return_value = ("ollama", "phi3:3.8b")
 
     # Envoyer /model, /model ollama, /model non_existent, puis /exit
     with patch(

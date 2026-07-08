@@ -10,8 +10,9 @@ from prompt_toolkit.history import FileHistory
 from rich.console import Console
 from rich.markdown import Markdown
 
-from jvl.core.config import load_config
+from jvl.core.config import load_config, load_user_config, resolve_active_config
 from jvl.core.router import BackendRouter
+from jvl.core.session import get_session_info, set_session_info
 from jvl.db import get_db
 from jvl.db.session import (
     add_message,
@@ -20,7 +21,7 @@ from jvl.db.session import (
     get_session_messages,
     get_session_usage,
 )
-from jvl.cli.model import pick_backend_interactive_async
+from jvl.cli.model import pick_backend_interactive_async, pick_provider_and_model_async
 from jvl.utils.errors import BackendNotAvailable, ConfigError
 
 console = Console()
@@ -33,7 +34,7 @@ HELP_TEXT = """[bold]Commandes disponibles :[/bold]
   [cyan]/help[/cyan]      — Affiche cette aide
   [cyan]/exit[/cyan]      — Quitte le chat
   [cyan]/clear[/cyan]     — Efface l'historique de la conversation
-  [cyan]/model[/cyan]     — Affiche ou change le backend/modèle actif
+  [cyan]/model[/cyan]     — Affiche/change le modèle actif (ex: `/model` pour le picker, `/model openai gpt-4o` pour changer directement)
   [cyan]/context[/cyan]   — Affiche le system prompt actif
   [cyan]/usage[/cyan]     — Affiche les tokens consommés dans la session
 """
@@ -51,6 +52,9 @@ def chat(
     backend: str | None = typer.Option(
         None, "--backend", "-b", help="Backend à utiliser"
     ),
+    model: str | None = typer.Option(
+        None, "--model", "-m", help="Modèle à utiliser"
+    ),
     session_id: str | None = typer.Option(
         None, "--session", help="Reprendre une session existante"
     ),
@@ -65,11 +69,12 @@ def chat(
     ),
 ) -> None:
     """Lance une conversation interactive multi-turn avec JVLIVS."""
-    asyncio.run(_chat_repl(backend, session_id, system, temperature, no_markdown))
+    asyncio.run(_chat_repl(backend, model, session_id, system, temperature, no_markdown))
 
 
 async def _chat_repl(
     backend_override: str | None,
+    model_override: str | None,
     session_id: str | None,
     system_override: str | None,
     temperature: float,
@@ -77,18 +82,30 @@ async def _chat_repl(
 ) -> None:
     # ── Config & Router ──
     try:
-        config = load_config()
-        router = BackendRouter(config)
+        user_config = load_user_config()
+        repo_config = load_config()
+        router = BackendRouter(user_config, repo_config=repo_config)
     except ConfigError as e:
         console.print(f"[red]Config invalide : {e}[/red]")
         raise typer.Exit(1)
 
-    if backend_override:
-        router.switch(backend_override)
+    if backend_override or model_override:
+        router.switch(backend_override or router.active_backend, model=model_override)
 
     active_backend = router.active_backend
-    backend_cfg = getattr(config.backends, active_backend, None)
-    model_name = getattr(backend_cfg, "model", "?") if backend_cfg else "?"
+    if not isinstance(active_backend, str):
+        active_backend = "ollama"
+
+    active_model = router.active_model
+    if not isinstance(active_model, str):
+        active_model = None
+    
+    # Résolution du modèle actif
+    try:
+        _, resolved_model, _ = resolve_active_config(user_config, repo_config=repo_config)
+        model_name = active_model or resolved_model
+    except Exception:
+        model_name = active_model or "?"
 
     # ── Validate connectivity ──
     with console.status(f"[dim]Connexion à {active_backend}...[/dim]"):
@@ -184,18 +201,28 @@ async def _chat_repl(
 
                 elif cmd == "/model":
                     new_backend = None
+                    new_model = None
                     if args:
                         new_backend = args[0]
+                        new_model = args[1] if len(args) > 1 else None
                     else:
-                        new_backend = await pick_backend_interactive_async(current=active_backend)
+                        result = await pick_provider_and_model_async(
+                            current_provider=active_backend,
+                            current_model=model_name,
+                        )
+                        if result:
+                            new_backend, new_model = result
 
                     if new_backend:
-                        new_cfg = getattr(config.backends, new_backend, None)
+                        new_cfg = getattr(repo_config.backends, new_backend, None)
                         if new_cfg is None:
-                            console.print(
-                                f"[red]Backend '{new_backend}' non configuré.[/red]"
-                            )
-                            continue
+                            # Vérifier dans la user config
+                            ucfg = load_user_config()
+                            if new_backend not in ucfg.providers and new_backend not in {"ollama", "openai", "anthropic", "azure", "gemini"}:
+                                console.print(
+                                    f"[red]Backend '{new_backend}' non configuré.[/red]"
+                                )
+                                continue
                         with console.status(
                             f"[dim]Connexion à {new_backend}...[/dim]"
                         ):
@@ -212,7 +239,13 @@ async def _chat_repl(
                                 continue
                         router.switch(new_backend)
                         active_backend = new_backend
-                        model_name = getattr(new_cfg, "model", "?")
+                        if new_model:
+                            model_name = new_model
+                        elif new_cfg:
+                            model_name = getattr(new_cfg, "model", "?")
+                        else:
+                            model_name = "?"
+                        set_session_info(active_backend, model_name if model_name != "?" else None)
                         console.print(
                             f"[green]Backend changé →[/green] "
                             f"[bold cyan]{active_backend} / {model_name}[/bold cyan]"
