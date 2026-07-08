@@ -157,6 +157,37 @@ Si vous lancez la commande `jvl model` sans argument, ou si vous utilisez la com
 
 ---
 
+## 📜 Historique des Conversations (`history`)
+
+JVLIVS persiste automatiquement toutes les conversations menées avec `jvl chat` dans une base SQLite locale (`~/.jvl/chat.db`). Vous pouvez consulter et rechercher dans l'historique avec la commande `jvl history`.
+
+### Consulter l'historique
+```bash
+# Lister les 10 dernières sessions de chat (par défaut)
+jvl history
+
+# Lister les 20 dernières sessions
+jvl history --limit 20
+```
+
+### Filtrer et Rechercher
+```bash
+# Filtrer l'historique pour un backend spécifique
+jvl history --backend ollama
+
+# Rechercher des sessions contenant un terme ou un sujet précis (ex: "RAG")
+jvl history --search "RAG"
+```
+
+### Afficher les détails d'une session
+```bash
+# Afficher l'intégralité des messages d'une session avec son ID
+jvl history <session_id>
+```
+
+---
+
+
 
 ## Auteur
 

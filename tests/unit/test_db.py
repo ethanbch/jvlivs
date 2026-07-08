@@ -2,8 +2,6 @@ from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from jvl.db.models import Base, ChatMessage, ChatSession
 from jvl.db.session import (
@@ -13,15 +11,6 @@ from jvl.db.session import (
     get_session_messages,
     get_session_usage,
 )
-
-
-@pytest.fixture
-def db():
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    session = sessionmaker(bind=engine)()
-    yield session
-    session.close()
 
 
 # ── ChatSession CRUD ──────────────────────────────────────────
@@ -72,10 +61,10 @@ def test_add_and_get_messages(db):
 
 def test_add_message_updates_session_timestamp(db):
     session = create_chat_session(db, backend="ollama", model="phi3:3.8b")
-    original_updated = session.updated_at
+    original_updated = session.ended_at
     add_message(db, session.id, "user", "hello")
     db.refresh(session)
-    assert session.updated_at >= original_updated
+    assert session.ended_at >= original_updated
 
 
 # ── Usage ─────────────────────────────────────────────────────
