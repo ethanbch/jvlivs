@@ -84,3 +84,53 @@ def test_review_stdin(mock_get_db, mock_router_cls, db):
     result = runner.invoke(app, ["review"], input="def sub(a, b): return a - b\n")
     assert result.exit_code == 0
     assert "Revue Stdin OK" in result.output
+
+
+@patch("jvl.cli.review.BackendRouter")
+@patch("jvl.cli.review.get_db")
+def test_review_custom_prompt_file(mock_get_db, mock_router_cls, db, tmp_path, monkeypatch):
+    mock_get_db.return_value = db
+    
+    # Path patch prompts/review.md
+    custom_prompt_file = tmp_path / "custom_review.md"
+    custom_prompt_file.write_text("CUSTOM REVIEW SYSTEM INSTRUCTION")
+    monkeypatch.setattr("jvl.cli.review.SYSTEM_REVIEW_PROMPT_PATH", custom_prompt_file)
+    
+    mock_router = mock_router_cls.return_value
+    mock_router.active_backend = "openai"
+    mock_router.active_model = "gpt-4o"
+    mock_router.validate = AsyncMock(return_value=True)
+    
+    async def mock_stream(*args, **kwargs):
+        yield "OK"
+    mock_router.stream = mock_stream
+
+    result = runner.invoke(app, ["review"], input="x = 1\n")
+    assert result.exit_code == 0
+    
+    # Verify DB session prompt is custom
+    from jvl.db.models import ChatSession
+    sessions = db.query(ChatSession).all()
+    assert len(sessions) == 1
+    assert sessions[0].system_prompt == "CUSTOM REVIEW SYSTEM INSTRUCTION"
+
+
+def test_review_missing_prompt_file(tmp_path, monkeypatch):
+    missing_file = tmp_path / "nonexistent_review.md"
+    monkeypatch.setattr("jvl.cli.review.SYSTEM_REVIEW_PROMPT_PATH", missing_file)
+    
+    result = runner.invoke(app, ["review"], input="x = 1\n", env={"COLUMNS": "120"})
+    assert result.exit_code == 1
+    assert "introuvable" in result.output
+
+
+def test_review_empty_prompt_file(tmp_path, monkeypatch):
+    empty_file = tmp_path / "empty_review.md"
+    empty_file.write_text("")
+    monkeypatch.setattr("jvl.cli.review.SYSTEM_REVIEW_PROMPT_PATH", empty_file)
+    
+    result = runner.invoke(app, ["review"], input="x = 1\n", env={"COLUMNS": "120"})
+    assert result.exit_code == 1
+    assert "vide" in result.output
+
+

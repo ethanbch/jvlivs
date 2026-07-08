@@ -17,30 +17,24 @@ from jvl.db.session import add_message, create_chat_session
 from jvl.utils.errors import BackendNotAvailable, ConfigError
 
 console = Console()
+SYSTEM_REVIEW_PROMPT_PATH = Path("prompts/review.md")
 
-SYSTEM_REVIEW_PROMPT = """Tu es un reviewer senior intransigeant, spécialisé en ingénierie logicielle, sécurité et performance. Ton rôle n'est pas de rassurer mais de protéger la qualité du code en production. Tu ne fais aucune concession de complaisance.
 
-RÈGLES DE COMPORTEMENT :
-- Ne jamais atténuer un problème réel par politesse.
-- Toute note supérieure à 7/10 doit être justifiée explicitement.
-- N'invente jamais un problème pour remplir une section. Si le code est correct sur un point, dis-le simplement, ne force pas un finding artificiel.
-- Chaque finding doit citer un EXTRAIT EXACT du code (pas juste un numéro de ligne) comme preuve. Si le contexte est insuffisant pour juger, écris "contexte insuffisant" plutôt que de spéculer.
-- Pour l'analyse sécurité : considère que tout input utilisateur est contrôlé par un attaquant. Trace le flux de données depuis l'entrée jusqu'à chaque opération sensible (requête DB, exec, fichier, log) et signale tout chemin non validé.
-- Ne signale un problème de performance ou de design que s'il a un impact réel à l'échelle attendue — pas de puriste théorique.
-- Classe chaque problème : 🔴 CRITICAL (bloquant) / 🟠 HIGH (à corriger avant prod) / 🟡 MEDIUM / ⚪ LOW (cosmétique).
-
-Analyse dans cet ordre de priorité :
-
-1. **Résumé & Score** — Note sur 10 justifiée. Décision : merge / merge avec réserves / à retravailler.
-2. **Bugs & Logique** — Erreurs logiques, edge cases (null, vide, limites, concurrence). Pour chaque : ce qui casse, dans quelles conditions, extrait de code, correctif.
-3. **Sécurité** — Catégories OWASP pertinentes : injection, validation d'input, secrets en dur, auth/authz, désérialisation, exposition de données sensibles.
-4. **Performance** — Complexité inutile, allocations, N+1, blocages synchrones. Uniquement si impact mesurable à l'échelle réelle.
-5. **Lisibilité & Bonnes Pratiques** — Naming, typage, docstrings, duplication, couplage.
-6. **Code Amélioré** — Réécriture concrète des 2-3 correctifs les plus critiques (pas de "il faudrait refactorer" vague).
-7. **Verdict Final** — Compte des CRITICAL/HIGH/MEDIUM/LOW. Décision claire.
-
-Si le fichier dépasse ~200 lignes, concentre-toi sur les fonctions/modules les plus critiques plutôt qu'une revue superficielle de tout.
-"""
+def _load_review_prompt() -> str:
+    """Charge le system prompt de revue depuis prompts/review.md."""
+    if not SYSTEM_REVIEW_PROMPT_PATH.exists():
+        console.print("[red]Erreur : Le fichier de prompt 'prompts/review.md' est introuvable.[/red]")
+        raise typer.Exit(1)
+    
+    try:
+        content = SYSTEM_REVIEW_PROMPT_PATH.read_text(encoding="utf-8").strip()
+        if not content:
+            console.print("[red]Erreur : Le fichier de prompt 'prompts/review.md' est vide.[/red]")
+            raise typer.Exit(1)
+        return content
+    except Exception as e:
+        console.print(f"[red]Erreur de lecture de 'prompts/review.md' : {e}[/red]")
+        raise typer.Exit(1)
 
 
 def review(
@@ -106,9 +100,10 @@ def review(
             raise typer.Exit(1)
 
     # 3. Préparer les messages pour le modèle
+    system_prompt = _load_review_prompt()
     user_prompt = f"Voici le code provenant de {source_label} à reviewer :\n\n```\n{code_content}\n```"
     messages = [
-        {"role": "system", "content": SYSTEM_REVIEW_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
     ]
 
@@ -116,6 +111,7 @@ def review(
         _run_review(
             messages,
             user_prompt,
+            system_prompt,
             backend,
             model,
             temperature,
@@ -129,6 +125,7 @@ def review(
 async def _run_review(
     messages: list[dict],
     user_prompt: str,
+    system_prompt: str,
     backend: str | None,
     model: str | None,
     temperature: float,
@@ -163,7 +160,7 @@ async def _run_review(
                     db,
                     backend=active_backend,
                     model=active_model,
-                    system_prompt=SYSTEM_REVIEW_PROMPT,
+                    system_prompt=system_prompt,
                 )
                 session_id = chat_session.id
                 add_message(db, session_id, "user", user_prompt)
