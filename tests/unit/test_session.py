@@ -7,7 +7,7 @@ from jvl.core.session import get_session_backend, session_file_for_tty
 
 
 def test_session_file_no_tty():
-    with patch("jvl.core.session.os.ttyname", side_effect=Exception("no tty")):
+    with patch("jvl.core.session.os.ttyname", side_effect=Exception("no tty"), create=True):
         f = session_file_for_tty()
         assert "notty" in f.name
 
