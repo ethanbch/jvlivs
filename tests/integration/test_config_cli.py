@@ -58,6 +58,36 @@ def test_config_provider_add_unknown(user_config_file):
     assert "inconnu" in result.output
 
 
+def test_config_provider_add_with_think(user_config_file):
+    # 1. Test avec --think false (chaîne qui doit être convertie en booléen False)
+    result = runner.invoke(app, [
+        "config", "provider", "add", "ollama",
+        "--default-model", "qwen3.5:4b",
+        "--think", "false",
+    ])
+    assert result.exit_code == 0
+    data = yaml.safe_load(user_config_file.read_text())
+    assert data["providers"]["ollama"]["think"] is False
+
+    # 2. Test avec --think low (chaîne préservée)
+    result = runner.invoke(app, [
+        "config", "provider", "add", "ollama",
+        "--think", "low",
+    ])
+    assert result.exit_code == 0
+    data = yaml.safe_load(user_config_file.read_text())
+    assert data["providers"]["ollama"]["think"] == "low"
+
+    # 3. Test avec --think none (converti en None)
+    result = runner.invoke(app, [
+        "config", "provider", "add", "ollama",
+        "--think", "none",
+    ])
+    assert result.exit_code == 0
+    data = yaml.safe_load(user_config_file.read_text())
+    assert "think" not in data["providers"]["ollama"] or data["providers"]["ollama"]["think"] is None
+
+
 def test_config_provider_list(user_config_file):
     # Seed some providers
     cfg = UserConfig(

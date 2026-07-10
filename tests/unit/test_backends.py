@@ -90,6 +90,61 @@ class TestOllamaClient:
         assert payload["options"]["num_predict"] == 50
 
     @pytest.mark.asyncio
+    async def test_stream_think_parameter(self, respx_mock):
+        # 1. par défaut (think=None), think n'est pas envoyé
+        client = OllamaClient(base_url="http://localhost:11434", model="phi3")
+        lines = [json.dumps({"message": {"content": "ok"}, "done": True})]
+        route = respx_mock.post("http://localhost:11434/api/chat").mock(
+            return_value=httpx.Response(200, text="\n".join(lines))
+        )
+        async for _ in client.stream([{"role": "user", "content": "test"}]):
+            pass
+        payload = json.loads(route.calls[0].request.content)
+        assert "think" not in payload
+
+        # 2. avec think=True configuré
+        client = OllamaClient(base_url="http://localhost:11434", model="phi3", think=True)
+        async for _ in client.stream([{"role": "user", "content": "test"}]):
+            pass
+        payload = json.loads(route.calls[1].request.content)
+        assert payload["think"] is True
+
+        # 3. avec think="low" configuré
+        client = OllamaClient(base_url="http://localhost:11434", model="phi3", think="low")
+        async for _ in client.stream([{"role": "user", "content": "test"}]):
+            pass
+        payload = json.loads(route.calls[2].request.content)
+        assert payload["think"] == "low"
+
+        # 4. avec think=True configuré mais override par think_override=False
+        async for _ in client.stream([{"role": "user", "content": "test"}], think_override=False):
+            pass
+        payload = json.loads(route.calls[3].request.content)
+        assert payload["think"] is False
+
+    @pytest.mark.asyncio
+    async def test_stream_with_thinking(self, respx_mock):
+        client = OllamaClient(base_url="http://localhost:11434", model="phi3")
+        lines = [
+            json.dumps({"message": {"thinking": "Thinking...", "content": ""}, "done": False}),
+            json.dumps({"message": {"thinking": "", "content": ""}, "done": False}), # Heartbeat / vide
+            json.dumps({"message": {"thinking": "", "content": "Final answer"}, "done": False}),
+            json.dumps({"done": True}),
+        ]
+        respx_mock.post("http://localhost:11434/api/chat").mock(
+            return_value=httpx.Response(200, text="\n".join(lines))
+        )
+        
+        chunks = []
+        async for chunk_type, chunk in client.stream_with_thinking([{"role": "user", "content": "test"}]):
+            chunks.append((chunk_type, chunk))
+            
+        assert chunks == [
+            ("thinking", "Thinking..."),
+            ("content", "Final answer")
+        ]
+
+    @pytest.mark.asyncio
     async def test_complete_returns_full_string(self, client, respx_mock):
         lines = [
             json.dumps({"message": {"content": "Hello"}, "done": False}),

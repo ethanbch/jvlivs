@@ -38,6 +38,9 @@ HELP_TEXT = """[bold]Commandes disponibles :[/bold]
   [cyan]/model[/cyan]     — Affiche/change le modèle actif (ex: `/model` pour le picker, `/model openai gpt-4o` pour changer directement)
   [cyan]/context[/cyan]   — Affiche le system prompt actif
   [cyan]/usage[/cyan]     — Affiche les tokens consommés dans la session
+  [cyan]/think[/cyan]     — Active ou configure le mode thinking (ex: `/think true`, `/think low`, `/think clear` pour réinitialiser).
+                 Prend en charge le streaming en temps réel de la pensée (thinking trace) sous forme de Panel grisé.
+  [cyan]/nothink[/cyan]   — Désactive le mode thinking (équivaut à `/think false`)
 """
 
 
@@ -81,7 +84,11 @@ def chat(
         False, "--no-markdown", help="Afficher en texte brut"
     ),
 ) -> None:
-    """Lance une conversation interactive multi-turn avec JVLIVS."""
+    """Lance une conversation interactive multi-turn avec JVLIVS.
+
+    Prend en charge l'affichage dynamique et le streaming en temps réel du mode
+    thinking pour les modèles avec raisonnement (ex: DeepSeek-R1, Qwen3.5:4b).
+    """
     asyncio.run(_chat_repl(backend, model, session_id, system, temperature, no_markdown))
 
 
@@ -176,6 +183,7 @@ async def _chat_repl(
         # ── REPL ──
         HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
         prompt_session = PromptSession(history=FileHistory(str(HISTORY_PATH)))
+        session_think_override: bool | str | None = None
 
         while True:
             # ── Input ──
@@ -290,6 +298,31 @@ async def _chat_repl(
                         f"  [dim]messages   :[/dim] [cyan]{msg_count}[/cyan]"
                     )
 
+                elif cmd == "/think":
+                    if args:
+                        val = args[0].lower()
+                        if val in ("clear", "reset", "default", "none"):
+                            session_think_override = None
+                            console.print("[green]Thinking mode réinitialisé aux paramètres par défaut de la configuration.[/green]")
+                        elif val == "false":
+                            session_think_override = False
+                            console.print("[green]Thinking mode désactivé pour cette session.[/green]")
+                        elif val == "true":
+                            session_think_override = True
+                            console.print("[green]Thinking mode activé (True) pour cette session.[/green]")
+                        else:
+                            session_think_override = val
+                            console.print(f"[green]Thinking mode défini sur '{val}' pour cette session.[/green]")
+                    else:
+                        if session_think_override is None:
+                            console.print("[dim]Aucun override de thinking mode actif pour cette session (utilise la config).[/dim]")
+                        else:
+                            console.print(f"[green]Override de thinking mode actif : {session_think_override}[/green]")
+
+                elif cmd == "/nothink":
+                    session_think_override = False
+                    console.print("[green]Thinking mode désactivé pour cette session.[/green]")
+
                 else:
                     console.print(f"[red]Commande inconnue : {cmd}[/red]")
                     console.print(
@@ -303,26 +336,77 @@ async def _chat_repl(
             user_msg = add_message(db, session_id, "user", user_input)
 
             # ── Stream response ──
+            thinking_response = ""
+            content_response = ""
             full_response = ""
             try:
                 if not no_markdown:
+                    import time
+                    from rich.live import Live
+                    from rich.markdown import Markdown
+                    from rich.console import Group
+                    from rich.panel import Panel
+
+                    def make_renderable():
+                        parts = []
+                        if thinking_response:
+                            parts.append(Panel(Markdown(thinking_response.strip()), title="[dim]Réflexion[/dim]", border_style="dim"))
+                        if content_response:
+                            parts.append(Markdown(content_response))
+                        return Group(*parts) if parts else ""
+
                     console.print()
-
-                async for chunk in router.stream(
-                    messages, temperature=temperature,
-                ):
-                    full_response += chunk
-                    if no_markdown:
-                        print(chunk, end="", flush=True)
-
-                if no_markdown:
-                    print()
+                    last_update = 0.0
+                    with Live(make_renderable(), console=console, refresh_per_second=8, vertical_overflow="visible") as live:
+                        async for chunk_type, chunk in router.stream_with_thinking(
+                            messages, temperature=temperature,
+                            think_override=session_think_override,
+                        ):
+                            if chunk_type == "thinking":
+                                thinking_response += chunk
+                            else:
+                                content_response += chunk
+                            
+                            now = time.monotonic()
+                            if now - last_update > 0.08:
+                                live.update(make_renderable())
+                                last_update = now
+                        live.update(make_renderable())
                 else:
-                    console.print(Markdown(full_response))
+                    in_thinking = False
+                    async for chunk_type, chunk in router.stream_with_thinking(
+                        messages, temperature=temperature,
+                        think_override=session_think_override,
+                    ):
+                        if chunk_type == "thinking":
+                            if not in_thinking:
+                                print("<think>\n", end="", flush=True)
+                                in_thinking = True
+                            thinking_response += chunk
+                            print(chunk, end="", flush=True)
+                        else:
+                            if in_thinking:
+                                print("\n</think>\n", end="", flush=True)
+                                in_thinking = False
+                            content_response += chunk
+                            print(chunk, end="", flush=True)
+                    if in_thinking:
+                        print("\n</think>\n", end="", flush=True)
+                    print()
+
+                if thinking_response:
+                    full_response = f"<think>\n{thinking_response.strip()}\n</think>\n{content_response}"
+                else:
+                    full_response = content_response
 
             except (BackendNotAvailable, Exception) as e:
                 console.print(f"[red]Erreur : {e}[/red]")
-                error_msg = f"[Erreur : {e}]"
+                partial_prefix = ""
+                if thinking_response:
+                    partial_prefix = f"<think>\n{thinking_response.strip()}\n</think>\n"
+                if content_response:
+                    partial_prefix += content_response
+                error_msg = f"{partial_prefix}\n[Erreur : {e}]".strip()
                 messages.append({"role": "assistant", "content": error_msg})
                 add_message(db, session_id, "assistant", error_msg)
                 continue

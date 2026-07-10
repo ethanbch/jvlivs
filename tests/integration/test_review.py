@@ -34,11 +34,11 @@ def test_review_file_argument(mock_get_db, mock_router_cls, temp_code_file, db):
     mock_router.active_model = "gpt-4o"
     mock_router.validate = AsyncMock(return_value=True)
     
-    # Mocking router.stream
-    async def mock_stream(*args, **kwargs):
-        yield "### Revue de code\n"
-        yield "- Score : 9/10\n"
-    mock_router.stream = mock_stream
+    # Mocking router.stream_with_thinking
+    async def mock_stream_with_thinking(*args, **kwargs):
+        yield "content", "### Revue de code\n"
+        yield "content", "- Score : 9/10\n"
+    mock_router.stream_with_thinking = mock_stream_with_thinking
     mock_router.last_usage = {"prompt_tokens": 10, "completion_tokens": 5}
 
     result = runner.invoke(app, ["review", str(temp_code_file)])
@@ -77,9 +77,9 @@ def test_review_stdin(mock_get_db, mock_router_cls, db):
     mock_router.active_model = "llama3"
     mock_router.validate = AsyncMock(return_value=True)
     
-    async def mock_stream(*args, **kwargs):
-        yield "Revue Stdin OK"
-    mock_router.stream = mock_stream
+    async def mock_stream_with_thinking(*args, **kwargs):
+        yield "content", "Revue Stdin OK"
+    mock_router.stream_with_thinking = mock_stream_with_thinking
 
     result = runner.invoke(app, ["review"], input="def sub(a, b): return a - b\n")
     assert result.exit_code == 0
@@ -101,9 +101,9 @@ def test_review_custom_prompt_file(mock_get_db, mock_router_cls, db, tmp_path, m
     mock_router.active_model = "gpt-4o"
     mock_router.validate = AsyncMock(return_value=True)
     
-    async def mock_stream(*args, **kwargs):
-        yield "OK"
-    mock_router.stream = mock_stream
+    async def mock_stream_with_thinking(*args, **kwargs):
+        yield "content", "OK"
+    mock_router.stream_with_thinking = mock_stream_with_thinking
 
     result = runner.invoke(app, ["review"], input="x = 1\n")
     assert result.exit_code == 0

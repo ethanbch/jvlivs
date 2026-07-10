@@ -48,7 +48,7 @@ def build_client_from_provider_config(
     match name:
         case "ollama":
             base_url = provider_config.base_url or "http://localhost:11434"
-            return OllamaClient(base_url, model)
+            return OllamaClient(base_url, model, think=provider_config.think)
 
         case "openai":
             if not provider_config.api_key:
@@ -142,9 +142,14 @@ class BackendRouter:
                         api_base=getattr(repo_backend, "api_base", None),
                         api_version=getattr(repo_backend, "api_version", None),
                         default_model=getattr(repo_backend, "model", None),
+                        think=getattr(repo_backend, "think", None),
                     )
             if not provider_cfg:
                 provider_cfg = ProviderConfig()
+            elif provider_cfg.think is None and self.repo_config:
+                repo_backend = getattr(self.repo_config.backends, name, None)
+                if repo_backend and getattr(repo_backend, "think", None) is not None:
+                    provider_cfg = provider_cfg.model_copy(update={"think": repo_backend.think})
                 
             return build_client_from_provider_config(name, provider_cfg, model)
         else:
@@ -156,7 +161,7 @@ class BackendRouter:
             case "ollama":
                 if cfg.ollama is None:
                     raise ConfigError("Backend 'ollama' non configuré dans config.yaml")
-                return OllamaClient(cfg.ollama.base_url, cfg.ollama.model)
+                return OllamaClient(cfg.ollama.base_url, cfg.ollama.model, think=cfg.ollama.think)
 
             case "openai":
                 if cfg.openai is None or not cfg.openai.api_key:
@@ -199,15 +204,57 @@ class BackendRouter:
         client = self._get_client(backend)
         return await client.validate()
 
+    def _clean_history(self, messages: list[dict]) -> list[dict]:
+        import re
+        cleaned = []
+        for msg in messages:
+            if msg.get("role") == "assistant" and msg.get("content"):
+                cleaned_content = re.sub(r'<think>.*?</think>', '', msg["content"], flags=re.DOTALL).strip()
+                cleaned.append({**msg, "content": cleaned_content})
+            else:
+                cleaned.append(msg)
+        return cleaned
+
     async def stream(
         self,
         messages: list[dict],
         backend: str | None = None,
+        strip_think_from_history: bool = True,
         **kwargs,
     ) -> AsyncIterator[str]:
         client = self._get_client(backend)
+        if strip_think_from_history:
+            messages = self._clean_history(messages)
+
+        think_override = kwargs.pop("think_override", None)
+        if think_override is not None and isinstance(client, OllamaClient):
+            kwargs["think_override"] = think_override
+
         async for chunk in client.stream(messages, **kwargs):
             yield chunk
+        self._last_usage = client.last_usage
+
+    async def stream_with_thinking(
+        self,
+        messages: list[dict],
+        backend: str | None = None,
+        strip_think_from_history: bool = True,
+        **kwargs,
+    ) -> AsyncIterator[tuple[str, str]]:
+        client = self._get_client(backend)
+        if strip_think_from_history:
+            messages = self._clean_history(messages)
+
+        think_override = kwargs.pop("think_override", None)
+
+        if hasattr(client, "stream_with_thinking"):
+            async for chunk_type, chunk in client.stream_with_thinking(
+                messages, think_override=think_override, **kwargs
+            ):
+                yield chunk_type, chunk
+        else:
+            async for chunk in client.stream(messages, **kwargs):
+                yield "content", chunk
         self._last_usage = client.last_usage
 
     def switch(self, backend: str, model: str | None = None) -> None:
