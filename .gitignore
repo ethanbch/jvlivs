@@ -48,4 +48,4 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 
-config/confif.local.yaml
+config/config.local.yaml
