@@ -40,3 +40,16 @@ def full_config_data() -> dict:
             "gemini": {"model": "gemini-2.5-flash", "api_key": "gem-test"},
         },
     }
+
+
+@pytest.fixture(autouse=True)
+def mock_prompt_toolkit():
+    """Sets up a dummy application session for prompt_toolkit to prevent NoConsoleScreenBufferError on Windows."""
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+    from prompt_toolkit.output import DummyOutput
+
+    with create_pipe_input() as inp:
+        with create_app_session(input=inp, output=DummyOutput()):
+            yield
+
