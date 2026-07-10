@@ -8,6 +8,8 @@ from jvl.cli.history import history
 from jvl.cli.model import model
 from jvl.cli.review import review
 
+from jvl.core.memory import initialize_memory_structure
+
 app = typer.Typer(help="JVLIVS CLI")
 app.command()(ask)
 app.command()(chat)
@@ -21,5 +23,5 @@ app.add_typer(config_app, name="config")
 @app.callback()
 def main() -> None:
     """Point d'entrée principal de JVLIVS."""
-    pass
+    initialize_memory_structure()
 
