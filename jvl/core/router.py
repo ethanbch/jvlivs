@@ -259,8 +259,9 @@ class BackendRouter:
 
     def switch(self, backend: str, model: str | None = None) -> None:
         self._active_backend = backend
-        if model:
-            self._active_model = model
+        self._active_model = model
+        if backend in self._clients:
+            del self._clients[backend]
 
     @property
     def active_backend(self) -> str:

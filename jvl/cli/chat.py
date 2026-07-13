@@ -258,14 +258,15 @@ async def _chat_repl(
                                     f"[red]Backend '{new_backend}' non joignable.[/red]"
                                 )
                                 continue
-                        router.switch(new_backend)
-                        active_backend = new_backend
                         if new_model:
                             model_name = new_model
                         elif new_cfg:
                             model_name = getattr(new_cfg, "model", "?")
                         else:
                             model_name = "?"
+
+                        router.switch(new_backend, model=model_name if model_name != "?" else None)
+                        active_backend = new_backend
                         set_session_info(active_backend, model_name if model_name != "?" else None)
                         console.print(
                             f"[green]Backend changé →[/green] "

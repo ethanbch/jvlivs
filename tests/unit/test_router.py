@@ -140,3 +140,25 @@ async def test_router_stream_with_thinking_openai_think_override(mock_session_no
         chunks.append((chunk_type, chunk))
 
     assert chunks == [("content", "openai response")]
+
+
+def test_router_switch_clears_client_cache_user_config(mock_session_none):
+    from jvl.core.config import UserConfig, ProviderConfig
+    user_config = UserConfig(
+        active_provider="ollama",
+        active_model="phi3",
+        providers={
+            "ollama": ProviderConfig(default_model="phi3")
+        }
+    )
+    with patch("jvl.core.router.get_session_info", return_value=None):
+        router = BackendRouter(user_config)
+    
+        client1 = router._get_client("ollama")
+        assert client1.model == "phi3"
+        
+        router.switch("ollama", model="qwen3.5:4b")
+        
+        client2 = router._get_client("ollama")
+        assert client2 is not client1
+        assert client2.model == "qwen3.5:4b"
