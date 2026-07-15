@@ -192,11 +192,11 @@ async def test_stream_response_debug_prints_stdin(capsys):
     mock_client.validate.return_value = True
     mock_router._get_client.return_value = mock_client
 
-    async def mock_stream(*args, **kwargs):
-        yield "chunk 1"
-        yield "chunk 2"
+    async def mock_stream_with_thinking(*args, **kwargs):
+        yield "content", "chunk 1"
+        yield "content", "chunk 2"
 
-    mock_router.stream = mock_stream
+    mock_router.stream_with_thinking = mock_stream_with_thinking
     mock_router.active_backend = "openai"
     mock_router.last_usage = {"prompt_tokens": 10, "completion_tokens": 20}
 

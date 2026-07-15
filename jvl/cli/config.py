@@ -70,6 +70,7 @@ def provider_add(
     api_base: str | None = typer.Option(None, "--api-base", help="Azure endpoint"),
     api_version: str | None = typer.Option(None, "--api-version", help="Azure API version"),
     default_model: str | None = typer.Option(None, "--default-model", "-m", help="Modèle par défaut"),
+    think: str | None = typer.Option(None, "--think", help="Mode thinking pour ce provider (true/false/low/medium/high/none)"),
 ) -> None:
     """Ajoute ou met à jour un provider dans la configuration utilisateur."""
     if name not in PROVIDER_REGISTRY:
@@ -82,6 +83,18 @@ def provider_add(
     user_config = load_user_config()
     existing = user_config.providers.get(name, ProviderConfig())
 
+    think_val = existing.think
+    if think is not None:
+        think_lower = think.lower()
+        if think_lower == "true":
+            think_val = True
+        elif think_lower == "false":
+            think_val = False
+        elif think_lower in ("none", "null"):
+            think_val = None
+        else:
+            think_val = think
+
     # Merge : ne remplacer que les valeurs fournies
     updated = ProviderConfig(
         api_key=api_key or existing.api_key,
@@ -89,6 +102,7 @@ def provider_add(
         api_base=api_base or existing.api_base,
         api_version=api_version or existing.api_version,
         default_model=default_model or existing.default_model,
+        think=think_val,
     )
     user_config.providers[name] = updated
     save_user_config(user_config)
@@ -313,6 +327,7 @@ def config_migrate() -> None:
             api_base=getattr(repo_backend, "api_base", None),
             api_version=getattr(repo_backend, "api_version", None),
             default_model=getattr(repo_backend, "model", None),
+            think=getattr(repo_backend, "think", None),
         )
         migrated += 1
         console.print(f"  [green]✓[/green] {name} → {getattr(repo_backend, 'model', '?')}")

@@ -114,3 +114,25 @@ def test_load_config_with_local_override(tmp_path, monkeypatch):
 
     config = load_config(config_path=config_yaml, local_path=local_yaml)
     assert config.default_backend == "openai"
+
+
+def test_think_normalization_and_parsing():
+    from jvl.core.config import OllamaConfig, ProviderConfig
+
+    # Test OllamaConfig normalization
+    assert OllamaConfig(model="x", think="false").think is False
+    assert OllamaConfig(model="x", think="True").think is True
+    assert OllamaConfig(model="x", think="none").think is None
+    assert OllamaConfig(model="x", think="low").think == "low"
+    assert OllamaConfig(model="x", think=False).think is False
+    assert OllamaConfig(model="x", think=True).think is True
+    assert OllamaConfig(model="x", think=None).think is None
+
+    # Test ProviderConfig normalization
+    assert ProviderConfig(think="false").think is False
+    assert ProviderConfig(think="True").think is True
+    assert ProviderConfig(think="none").think is None
+    assert ProviderConfig(think="low").think == "low"
+    assert ProviderConfig(think=False).think is False
+    assert ProviderConfig(think=True).think is True
+    assert ProviderConfig(think=None).think is None

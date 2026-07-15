@@ -100,3 +100,65 @@ async def test_router_stream_yields_chunks(mock_session_none):
         chunks.append(chunk)
 
     assert chunks == ["hello", " world"]
+
+
+def test_router_clean_history(mock_session_none):
+    config = make_config("ollama")
+    router = BackendRouter(config)
+    
+    messages = [
+        {"role": "system", "content": "Keep it short"},
+        {"role": "user", "content": "Hello"},
+        {"role": "assistant", "content": "<think>\nThinking process...\n</think>\nActual response content"}
+    ]
+    cleaned = router._clean_history(messages)
+    assert cleaned[0] == messages[0]
+    assert cleaned[1] == messages[1]
+    assert cleaned[2] == {"role": "assistant", "content": "Actual response content"}
+
+
+@pytest.mark.asyncio
+async def test_router_stream_with_thinking_openai_think_override(mock_session_none):
+    config = make_config("openai")
+    router = BackendRouter(config)
+    router.switch("openai")
+
+    async def fake_stream(messages, **kwargs):
+        assert "think_override" not in kwargs
+        yield "openai response"
+
+    mock_client = AsyncMock()
+    del mock_client.stream_with_thinking
+    mock_client.stream = fake_stream
+    mock_client.last_usage = None
+    router._clients["openai"] = mock_client
+
+    chunks = []
+    async for chunk_type, chunk in router.stream_with_thinking(
+        [{"role": "user", "content": "test"}], think_override=True
+    ):
+        chunks.append((chunk_type, chunk))
+
+    assert chunks == [("content", "openai response")]
+
+
+def test_router_switch_clears_client_cache_user_config(mock_session_none):
+    from jvl.core.config import UserConfig, ProviderConfig
+    user_config = UserConfig(
+        active_provider="ollama",
+        active_model="phi3",
+        providers={
+            "ollama": ProviderConfig(default_model="phi3")
+        }
+    )
+    with patch("jvl.core.router.get_session_info", return_value=None):
+        router = BackendRouter(user_config)
+    
+        client1 = router._get_client("ollama")
+        assert client1.model == "phi3"
+        
+        router.switch("ollama", model="qwen3.5:4b")
+        
+        client2 = router._get_client("ollama")
+        assert client2 is not client1
+        assert client2.model == "qwen3.5:4b"

@@ -20,11 +20,11 @@ def mock_router():
     router._get_client.return_value = client
     router.active_backend = "gemini"
 
-    async def mock_stream(*args, **kwargs):
-        yield "Hello! "
-        yield "How can I help you today?"
+    async def mock_stream_with_thinking(*args, **kwargs):
+        yield "content", "Hello! "
+        yield "content", "How can I help you today?"
 
-    router.stream = mock_stream
+    router.stream_with_thinking = mock_stream_with_thinking
     router.last_usage = {"prompt_tokens": 10, "completion_tokens": 15}
     return router
 
@@ -155,3 +155,31 @@ def test_chat_slash_model(mock_pick, mock_router_cls, mock_get_db, mock_router, 
         assert "Backend changé → ollama / phi3:3.8b" in result.output
         assert "Backend 'non_existent' non configuré" in result.output
         mock_pick.assert_called_once()
+
+
+@patch("jvl.cli.chat.get_db")
+@patch("jvl.cli.chat.BackendRouter")
+def test_chat_slash_think(mock_router_cls, mock_get_db, mock_router, mock_db):
+    mock_router_cls.return_value = mock_router
+    mock_get_db.return_value = mock_db
+
+    # Envoyer les commandes /think et /nothink puis /exit
+    with patch(
+        "prompt_toolkit.PromptSession.prompt_async",
+        new_callable=AsyncMock,
+        side_effect=[
+            "/think",
+            "/think true",
+            "/think low",
+            "/nothink",
+            "/think clear",
+            "/exit"
+        ]
+    ):
+        result = runner.invoke(app, ["chat"])
+        assert result.exit_code == 0
+        assert "Aucun override de thinking mode actif" in result.output
+        assert "Thinking mode activé (True) pour cette session" in result.output
+        assert "Thinking mode défini sur 'low' pour cette session" in result.output
+        assert "Thinking mode désactivé pour cette session" in result.output
+        assert "Thinking mode réinitialisé aux paramètres par défaut" in result.output

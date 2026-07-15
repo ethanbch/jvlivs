@@ -38,7 +38,11 @@ def ask(
         False, "--debug", "-d", help="Affiche le backend et modèle utilisés"
     ),
 ) -> None:
-    """Envoie un prompt au modèle et affiche la réponse en streaming."""
+    """Envoie un prompt au modèle et affiche la réponse en streaming.
+
+    Prend en charge l'affichage en direct et le streaming du mode thinking pour
+    les modèles dotés de raisonnement (ex: DeepSeek-R1, Qwen3.5:4b).
+    """
 
     messages: list[dict] = []
 
@@ -115,20 +119,65 @@ async def _stream_response(
                     f"Backend '{active_backend}' non joignable."
                 )
 
-        async for chunk in router.stream(
-            messages,
-            backend=active_backend,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        ):
-            full_response += chunk
-            if no_markdown:
-                print(chunk, end="", flush=True)
+        thinking_response = ""
+        content_response = ""
+        last_update = 0.0
 
-        if no_markdown:
-            print()
+        if not no_markdown:
+            import time
+            from rich.live import Live
+            from rich.markdown import Markdown
+            from rich.console import Group
+            from rich.panel import Panel
+
+            def make_renderable():
+                parts = []
+                if thinking_response:
+                    parts.append(Panel(Markdown(thinking_response.strip()), title="[dim]Réflexion[/dim]", border_style="dim"))
+                if content_response:
+                    parts.append(Markdown(content_response))
+                return Group(*parts) if parts else ""
+
+            with Live(make_renderable(), console=console, refresh_per_second=8, vertical_overflow="visible") as live:
+                async for chunk_type, chunk in router.stream_with_thinking(
+                    messages,
+                    backend=active_backend,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                ):
+                    if chunk_type == "thinking":
+                        thinking_response += chunk
+                    else:
+                        content_response += chunk
+                    
+                    now = time.monotonic()
+                    if now - last_update > 0.08:
+                        live.update(make_renderable())
+                        last_update = now
+                live.update(make_renderable())
         else:
-            console.print(Markdown(full_response))
+            in_thinking = False
+            async for chunk_type, chunk in router.stream_with_thinking(
+                messages,
+                backend=active_backend,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            ):
+                if chunk_type == "thinking":
+                    if not in_thinking:
+                        print("<think>\n", end="", flush=True)
+                        in_thinking = True
+                    thinking_response += chunk
+                    print(chunk, end="", flush=True)
+                else:
+                    if in_thinking:
+                        print("\n</think>\n", end="", flush=True)
+                        in_thinking = False
+                    content_response += chunk
+                    print(chunk, end="", flush=True)
+            if in_thinking:
+                print("\n</think>\n", end="", flush=True)
+            print()
 
         if debug:
             usage = router.last_usage

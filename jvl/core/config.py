@@ -10,9 +10,27 @@ from pydantic import BaseModel, field_validator
 from jvl.utils.errors import ConfigError
 
 
+def _normalize_think(v: any) -> any:
+    if isinstance(v, str):
+        v_lower = v.lower()
+        if v_lower == "true":
+            return True
+        if v_lower == "false":
+            return False
+        if v_lower in ("none", "null"):
+            return None
+    return v
+
+
 class OllamaConfig(BaseModel):
     model: str
     base_url: str = "http://localhost:11434"
+    think: bool | str | None = None
+
+    @field_validator("think", mode="before")
+    @classmethod
+    def normalize_think(cls, v: any) -> any:
+        return _normalize_think(v)
 
 
 class OpenAIConfig(BaseModel):
@@ -113,6 +131,12 @@ class ProviderConfig(BaseModel):
     api_base: str | None = None  # Azure spécifique
     api_version: str | None = None  # Azure spécifique
     default_model: str | None = None
+    think: bool | str | None = None
+
+    @field_validator("think", mode="before")
+    @classmethod
+    def normalize_think(cls, v: any) -> any:
+        return _normalize_think(v)
 
 
 class UserConfig(BaseModel):
@@ -190,6 +214,7 @@ def resolve_active_config(
                 api_base=getattr(repo_backend_cfg, "api_base", None),
                 api_version=getattr(repo_backend_cfg, "api_version", None),
                 default_model=getattr(repo_backend_cfg, "model", None),
+                think=getattr(repo_backend_cfg, "think", None),
             )
 
     if not model:
