@@ -125,3 +125,28 @@ def load_memory(project: str | None = None, max_tokens: int = 2000) -> str:
     combined_text = "\n\n".join(content_parts)
     return truncate_to_max_tokens(combined_text, max_tokens)
 
+
+import re
+
+def strip_memory_tags(prompt: str | None) -> str | None:
+    """Retire proprement les balises de mémoire utilisateur d'un system prompt."""
+    if not prompt or "<MEMOIRE_UTILISATEUR>" not in prompt:
+        return prompt or None
+    return re.sub(
+        r"\n?\n?<MEMOIRE_UTILISATEUR>.*?</MEMOIRE_UTILISATEUR>",
+        "",
+        prompt,
+        flags=re.DOTALL
+    ).strip() or None
+
+
+def enrich_system_prompt(base_prompt: str | None, project: str | None = None) -> str | None:
+    """Enrichit un system prompt avec la mémoire utilisateur active."""
+    clean = strip_memory_tags(base_prompt)
+    memory_content = load_memory(project=project)
+    if not memory_content:
+        return clean
+
+    delimiter = f"<MEMOIRE_UTILISATEUR>\n{memory_content}\n</MEMOIRE_UTILISATEUR>"
+    return f"{clean}\n\n{delimiter}" if clean else delimiter
+

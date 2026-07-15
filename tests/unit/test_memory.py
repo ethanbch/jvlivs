@@ -88,3 +88,42 @@ def test_load_memory_with_project(patch_memory_paths):
     assert "Mémoire Globale :" in loaded
     assert "CLIENT-A DECISIONS" in loaded
     assert "CLIENT-A TODOS" in loaded
+
+
+def test_strip_memory_tags():
+    from jvl.core.memory import strip_memory_tags
+
+    # 1. Aucun tag
+    assert strip_memory_tags(None) is None
+    assert strip_memory_tags("hello") == "hello"
+
+    # 2. Tag simple
+    prompt = "Tu es JVLIVS.\n\n<MEMOIRE_UTILISATEUR>\n### Mémoire Globale :\nSome Prefs\n</MEMOIRE_UTILISATEUR>"
+    assert strip_memory_tags(prompt) == "Tu es JVLIVS."
+
+    # 3. Uniquement le tag
+    prompt_only_tag = "<MEMOIRE_UTILISATEUR>\nSome Prefs\n</MEMOIRE_UTILISATEUR>"
+    assert strip_memory_tags(prompt_only_tag) is None
+
+
+def test_enrich_system_prompt(patch_memory_paths):
+    from jvl.core.memory import enrich_system_prompt
+    mem_dir, _ = patch_memory_paths
+    memory.initialize_memory_structure()
+
+    # Configurer une mémoire globale
+    (mem_dir / "global.md").write_text("My Preferences", encoding="utf-8")
+
+    # 1. Enrichir prompt de base
+    res = enrich_system_prompt("Base Prompt")
+    assert "Base Prompt" in res
+    assert "<MEMOIRE_UTILISATEUR>" in res
+    assert "My Preferences" in res
+
+    # 2. Re-enrichir un prompt déjà enrichi (doit nettoyer l'ancien et mettre le nouveau)
+    (mem_dir / "global.md").write_text("Updated Preferences", encoding="utf-8")
+    res_second = enrich_system_prompt(res)
+    assert "Base Prompt" in res_second
+    assert "My Preferences" not in res_second
+    assert "Updated Preferences" in res_second
+

@@ -183,3 +183,26 @@ def test_chat_slash_think(mock_router_cls, mock_get_db, mock_router, mock_db):
         assert "Thinking mode défini sur 'low' pour cette session" in result.output
         assert "Thinking mode désactivé pour cette session" in result.output
         assert "Thinking mode réinitialisé aux paramètres par défaut" in result.output
+
+
+@patch("jvl.cli.chat.get_db")
+@patch("jvl.cli.chat.BackendRouter")
+def test_chat_memory_context_and_clear(mock_router_cls, mock_get_db, mock_router, mock_db):
+    mock_router_cls.return_value = mock_router
+    mock_get_db.return_value = mock_db
+
+    # Envoyer /context, /clear, /context puis /exit avec une mémoire configurée
+    with (
+        patch("jvl.core.memory.load_memory", return_value="- Test global preference"),
+        patch(
+            "prompt_toolkit.PromptSession.prompt_async",
+            new_callable=AsyncMock,
+            side_effect=["/context", "/clear", "/context", "/exit"]
+        )
+    ):
+        result = runner.invoke(app, ["chat"])
+        assert result.exit_code == 0
+        assert "Avec mémoire active" in result.output
+        # On doit retrouver la mémoire dans le contexte deux fois (avant et après le clear)
+        assert result.output.count("Test global preference") == 2
+        assert "Historique effacé" in result.output

@@ -99,7 +99,10 @@ def test_ask_no_stdin():
         ask(prompt="my prompt", system=None)
         mock_stream.assert_called_once()
         messages = mock_stream.call_args[0][0]
-        assert messages == [{"role": "user", "content": "my prompt"}]
+        assert messages == [
+            {"role": "system", "content": "Tu es JVLIVS, un assistant IA de test."},
+            {"role": "user", "content": "my prompt"}
+        ]
 
 
 def test_ask_with_stdin_empty(capsys):
@@ -115,7 +118,10 @@ def test_ask_with_stdin_empty(capsys):
         ask(prompt="my prompt", system=None)
         mock_stream.assert_called_once()
         messages = mock_stream.call_args[0][0]
-        assert messages == [{"role": "user", "content": "my prompt"}]
+        assert messages == [
+            {"role": "system", "content": "Tu es JVLIVS, un assistant IA de test."},
+            {"role": "user", "content": "my prompt"}
+        ]
         captured = capsys.readouterr()
         assert "Attention : l'entrée standard (stdin) est vide" in captured.out
 
@@ -133,7 +139,10 @@ def test_ask_with_stdin_completely_empty(capsys):
         ask(prompt="my prompt", system=None)
         mock_stream.assert_called_once()
         messages = mock_stream.call_args[0][0]
-        assert messages == [{"role": "user", "content": "my prompt"}]
+        assert messages == [
+            {"role": "system", "content": "Tu es JVLIVS, un assistant IA de test."},
+            {"role": "user", "content": "my prompt"}
+        ]
         captured = capsys.readouterr()
         assert "Attention : l'entrée standard (stdin) est vide" in captured.out
 
@@ -152,6 +161,7 @@ def test_ask_with_stdin_data():
         mock_stream.assert_called_once()
         messages = mock_stream.call_args[0][0]
         assert messages == [
+            {"role": "system", "content": "Tu es JVLIVS, un assistant IA de test."},
             {
                 "role": "user",
                 "content": "my prompt\n\nContexte fourni via stdin :\nsome file content\nline 2\n",
@@ -218,3 +228,28 @@ async def test_stream_response_debug_prints_stdin(capsys):
     captured = capsys.readouterr()
     assert "stdin" in captured.out
     assert "my debugged stdin content" in captured.out
+
+
+def test_ask_with_memory_injection(capsys):
+    from jvl.cli.ask import ask
+
+    mock_stdin = MagicMock()
+    mock_stdin.isatty.return_value = True
+    with (
+        patch("sys.stdin", mock_stdin),
+        patch("jvl.core.memory.load_memory", return_value="- My global preference"),
+        patch("jvl.cli.ask._stream_response", new_callable=AsyncMock) as mock_stream,
+    ):
+        ask(prompt="my prompt", system="Base System Prompt")
+        mock_stream.assert_called_once()
+        messages = mock_stream.call_args[0][0]
+        
+        # Verify enriched system prompt is correct
+        assert messages[0]["role"] == "system"
+        assert "Base System Prompt" in messages[0]["content"]
+        assert "<MEMOIRE_UTILISATEUR>" in messages[0]["content"]
+        assert "- My global preference" in messages[0]["content"]
+        
+        # Verify visual indicator is printed
+        captured = capsys.readouterr()
+        assert "Avec mémoire active" in captured.out

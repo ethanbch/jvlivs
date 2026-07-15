@@ -53,3 +53,24 @@ def mock_prompt_toolkit():
         with create_app_session(input=inp, output=DummyOutput()):
             yield
 
+
+@pytest.fixture(autouse=True)
+def patch_global_memory_paths(tmp_path, monkeypatch):
+    """Garantit que tous les tests utilisent un dossier de mémoire temporaire vide."""
+    from jvl.core import memory
+    tmp_mem_dir = tmp_path / "jvl" / "memory"
+    tmp_state_file = tmp_path / "jvl" / "state.json"
+    monkeypatch.setattr(memory, "MEMORY_DIR", tmp_mem_dir)
+    monkeypatch.setattr(memory, "STATE_FILE", tmp_state_file)
+
+
+@pytest.fixture(autouse=True)
+def mock_load_memory_empty(request):
+    """Mocke load_memory pour renvoyer une chaîne vide par défaut dans tous les tests sauf ceux de test_memory.py."""
+    if "test_memory" in request.module.__name__:
+        yield
+    else:
+        from unittest.mock import patch
+        with patch("jvl.core.memory.load_memory", return_value=""):
+            yield
+

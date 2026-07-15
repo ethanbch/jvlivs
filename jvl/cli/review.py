@@ -110,6 +110,18 @@ def review(
 
     # 3. Préparer les messages pour le modèle
     system_prompt = _load_review_prompt()
+    
+    from jvl.core.memory import load_memory, enrich_system_prompt, strip_memory_tags
+    clean_base = strip_memory_tags(system_prompt)
+    
+    memory_content = load_memory()
+    if memory_content:
+        if "[Contenu de la mémoire tronqué" in memory_content:
+            console.print("[yellow]Avertissement : Mémoire tronquée (fichiers trop longs)[/yellow]")
+        console.print("[dim]Avec mémoire active[/dim]")
+        
+    system_prompt = enrich_system_prompt(clean_base)
+    
     user_prompt = f"Voici le code provenant de {source_label} à reviewer :\n\n```\n{code_content}\n```"
     messages = [
         {"role": "system", "content": system_prompt},

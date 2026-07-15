@@ -46,8 +46,22 @@ def ask(
 
     messages: list[dict] = []
 
-    if system:
-        messages.append({"role": "system", "content": system})
+    from jvl.cli.chat import _load_system_prompt
+    from jvl.core.memory import load_memory, enrich_system_prompt, strip_memory_tags
+
+    base_system = system or _load_system_prompt()
+    clean_base = strip_memory_tags(base_system)
+    
+    memory_content = load_memory()
+    if memory_content:
+        if "[Contenu de la mémoire tronqué" in memory_content:
+            console.print("[yellow]Avertissement : Mémoire tronquée (fichiers trop longs)[/yellow]")
+        console.print("[dim]Avec mémoire active[/dim]")
+        
+    system_prompt = enrich_system_prompt(clean_base)
+    
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
 
     stdin_content = ""
     if not sys.stdin.isatty():

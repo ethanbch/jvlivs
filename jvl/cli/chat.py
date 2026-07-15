@@ -144,7 +144,14 @@ async def _chat_repl(
         messages: list[dict] = []
         total_tokens_in = 0
         total_tokens_out = 0
-        system_prompt = system_override or _load_system_prompt()
+
+        # Charger la mémoire de départ
+        from jvl.core.memory import load_memory, enrich_system_prompt, strip_memory_tags
+        memory_content = load_memory()
+        if memory_content:
+            if "[Contenu de la mémoire tronqué" in memory_content:
+                console.print("[yellow]Avertissement : Mémoire tronquée (fichiers trop longs)[/yellow]")
+            console.print("[dim]Avec mémoire active[/dim]")
 
         if session_id:
             chat_session = get_chat_session(db, session_id)
@@ -153,21 +160,56 @@ async def _chat_repl(
                 raise typer.Exit(1)
             messages = get_session_messages(db, session_id)
             system_prompt = chat_session.system_prompt
+            
+            # Injection dynamique linéaire de la mémoire
+            clean_base = strip_memory_tags(system_prompt)
+            enriched = enrich_system_prompt(clean_base)
+            
+            system_msg_idx = -1
+            for idx, msg in enumerate(messages):
+                if msg["role"] == "system":
+                    system_msg_idx = idx
+                    break
+            
+            if enriched:
+                if system_msg_idx >= 0:
+                    messages[system_msg_idx]["content"] = enriched
+                else:
+                    messages.insert(0, {"role": "system", "content": enriched})
+            else:
+                if system_msg_idx >= 0:
+                    if clean_base:
+                        messages[system_msg_idx]["content"] = clean_base
+                    else:
+                        messages.pop(system_msg_idx)
+            
+            system_prompt = enriched or clean_base
             usage_data = get_session_usage(db, session_id)
             total_tokens_in = usage_data["total_in"]
             total_tokens_out = usage_data["total_out"]
             console.print(f"\n[dim]Session reprise : {session_id}[/dim]")
             console.print(f"[dim]{usage_data['message_count']} messages chargés.[/dim]")
         else:
+            system_prompt = system_override or _load_system_prompt()
+            clean_base = strip_memory_tags(system_prompt)
+            enriched_system_prompt = enrich_system_prompt(clean_base)
+            
             chat_session = create_chat_session(
                 db,
                 backend=active_backend,
                 model=model_name,
-                system_prompt=system_prompt,
+                system_prompt=clean_base,  # Conserver le prompt de base "propre" dans l'en-tête de session
             )
             session_id = chat_session.id
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
+            if enriched_system_prompt:
+                messages.append({"role": "system", "content": enriched_system_prompt})
+                # Mettre à jour l'enregistrement du message système initial dans la DB
+                from jvl.db.models import ChatMessage
+                system_msg = db.query(ChatMessage).filter_by(session_id=session_id, role="system").first()
+                if system_msg:
+                    system_msg.content = enriched_system_prompt
+                    db.commit()
+            system_prompt = enriched_system_prompt or clean_base
 
         # ── Banner ──
         console.print()
@@ -344,7 +386,6 @@ async def _chat_repl(
                 if not no_markdown:
                     import time
                     from rich.live import Live
-                    from rich.markdown import Markdown
                     from rich.console import Group
                     from rich.panel import Panel
 
